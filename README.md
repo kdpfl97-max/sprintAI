@@ -1,16 +1,111 @@
-# React + Vite
+# sprintAI — AI 기반 스프린트 플래닝 도구
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
-
-Currently, two official plugins are available:
-
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
-
-## React Compiler
-
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
-
-## Expanding the ESLint configuration
-
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.
+> 팀 capacity를 AI가 계산하고, 백로그 우선순위를 자동 분류해 스프린트 계획 시간을 줄입니다.
+>
+> **개인 기획·개발 프로젝트** | 2026.05 ~ 진행 중 | React + Vite + Tailwind CSS | Vercel 배포
+>
+> ---
+>
+> ## 문제 정의
+>
+> 스프린트 플래닝 회의에서 반복되는 문제가 있었습니다.
+>
+> "이번 스프린트에 뭘 넣을 수 있지?" — 이 질문에 답하려면 팀원마다 남은 capacity를 계산하고, 백로그 태스크의 스토리포인트를 합산하고, 우선순위를 협의해야 합니다. 숙련된 PM도 이 과정에 30분~1시간이 걸리고, 계산 실수로 over-commit이 빈번하게 발생합니다.
+>
+> **핵심 페인 포인트**
+> - 팀원별 가용 시간(capacity)을 엑셀·메모에 흩어 관리
+> - - 백로그 우선순위가 주관적 협의에 의존 → 회의 시간 낭비
+>   - - 스프린트 확정 후에야 over-commit을 인지
+>    
+>     - ---
+>
+> ## 솔루션
+>
+> sprintAI는 세 가지로 이 문제를 해결합니다.
+>
+> 1. **팀 Capacity 자동 집계** — 팀원 등록 시 가용 시간을 입력하면, 스프린트 빌더에서 총 capacity를 실시간 계산
+> 2. 2. **AI 우선순위 자동 분류** — 백로그 태스크를 AI가 Must / Should / Could / Won't로 자동 분류 (개발 중)
+>    3. 3. **PM 권한 기반 확정 플로우** — AI 분석 결과를 PM만 확정할 수 있어 의사결정 책임을 명확화
+>      
+>       4. ---
+>      
+>       5. ## 주요 기능
+>      
+>       6. | 페이지 | 설명 |
+> |---|---|
+> | **아이디어 캡처** | 팀원 누구나 아이디어를 빠르게 기록, 백로그 전환 가능 |
+> | **백로그** | 전체 태스크 관리, 스토리포인트·담당자 설정 |
+> | **AI 스프린트 빌더** | capacity 슬라이더 + AI 우선순위 분류 → 스프린트 자동 구성 |
+> | **칸반 보드** | 진행 중인 스프린트 태스크 상태 관리 |
+> | **팀 관리** | 팀원 등록 및 capacity 설정 |
+> | **대시보드** | 스프린트 진행률, 팀 velocity 현황 |
+>
+> ---
+>
+> ## 기획 의사결정
+>
+> ### 왜 MVP를 6개 페이지로 정했나
+>
+> 스프린트 플래닝의 흐름은 **아이디어 → 백로그 → 스프린트 구성 → 실행 → 회고** 순입니다. MVP에서는 "스프린트 구성" 단계의 friction을 없애는 것이 핵심이라 판단해, AI 스프린트 빌더를 중심으로 이를 지원하는 최소 페이지만 포함했습니다.
+>
+> 회고 기능은 의도적으로 제외 — velocity 데이터가 쌓이기 전까지는 회고 기능의 가치가 낮다고 판단했습니다.
+>
+> ### 로그인 없는 MVP 방식
+>
+> 초기에는 계정 시스템 구현을 검토했지만, MVP 목표는 "스프린트 빌더 플로우 검증"이라 판단해 사이드바 팀원 선택 방식으로 단순화했습니다. 이를 통해 인증 구현 공수를 줄이고 핵심 기능 검증에 집중할 수 있었습니다.
+>
+> ### PM / 팀원 권한 분리
+>
+> | 액션 | PM | 팀원 |
+> |---|---|---|
+> | 페이지 조회 | ✅ | ✅ |
+> | AI 분석 실행 | ✅ | 🔒 |
+> | 담당자 배정 | ✅ | 🔒 |
+> | 스프린트 확정 | ✅ | 🔒 |
+> | 스프린트 초기화 | ✅ | 🔒 |
+>
+> AI가 제안하더라도 최종 확정은 PM만 가능하도록 설계했습니다. 자동화 도구에서 "결정 책임"이 불명확해지는 문제를 권한 체계로 해결한 것입니다.
+>
+> ### 디자인 시스템 정의
+>
+> SOCAR Frame 2.0을 레퍼런스로 삼아 sprintAI 전용 디자인 원칙을 정의했습니다. ([상세 문서 →](./sprintAI-Design.md))
+>
+> 핵심 원칙: 그라디언트·강한 그림자 금지, 위계는 색이 아닌 크기/굵기로, 유일한 브랜드 컬러 `#2563EB` 단일 사용
+>
+> ---
+>
+> ## 기술 스택
+>
+> | 구분 | 선택 | 이유 |
+> |---|---|---|
+> | Framework | React 19 | 컴포넌트 기반 UI, 팀 내 범용성 |
+> | Build | Vite | 빠른 개발 환경 |
+> | Styling | Tailwind CSS v4 | 디자인 토큰 기반 일관성 유지 |
+> | Routing | React Router v7 | 멀티 페이지 SPA |
+> | Deploy | Vercel | 빠른 배포, 프리뷰 URL |
+>
+> ---
+>
+> ## 현재 상태 & 로드맵
+>
+> **현재 (2026.06)**
+> - UI 전체 구현 중
+> - - 권한 체계, 디자인 시스템 적용 완료
+>  
+>   - **다음 단계**
+>   - - [ ] AI 우선순위 분류 연동 (LLM API)
+>     - [ ] - [ ] 팀 capacity 자동 계산 로직 구현
+>     - [ ] - [ ] 스프린트 velocity 추적 및 대시보드 완성
+>     - [ ] - [ ] 사용자 테스트 및 UX 개선
+>    
+>     - [ ] ---
+>    
+>     - [ ] ## 배운 것
+>
+> 기획자로서 직접 구현하면서 "왜 이 기능이 개발하기 어려운가"를 체감했습니다. 특히 권한 체계를 코드로 옮기는 과정에서, 기획 문서의 모호한 표현이 구현 단계에서 어떤 문제를 만드는지 직접 경험했습니다. 이후 문서 작성 시 구현 파일명까지 명시하는 방식을 도입했습니다.
+>
+> ---
+>
+> ## 만든 사람
+>
+> **곽예리** — 기획자 | [GitHub](https://github.com/kdpfl97-max)
