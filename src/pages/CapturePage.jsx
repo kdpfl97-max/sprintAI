@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import Topbar from '../components/layout/Topbar'
 import { useBacklogStore } from '../store/useBacklogStore'
+import { useAuthStore } from '../store/useAuthStore'
 
 const PRIORITY_OPTIONS = ['Must', 'Should', 'Could', "Won't"]
 const CATEGORY_OPTIONS = ['기능', '에픽', 'UI/UX', '인프라', '버그']
@@ -49,6 +50,7 @@ const selectBase   = { fontSize: 11, fontWeight: 600, padding: '3px 10px', borde
 export default function CapturePage() {
   const navigate = useNavigate()
   const { add }  = useBacklogStore()
+  const { currentUser } = useAuthStore()
 
   const [input,   setInput]   = useState('')
   const [tasks,   setTasks]   = useState([])
@@ -77,13 +79,38 @@ export default function CapturePage() {
 
   function handleAddToBacklog() {
     tasks.filter(t => checked.has(t.id)).forEach(t =>
-      add({ title: t.title, desc: t.desc, category: t.category, priority: t.priority, stage: t.stage, points: t.points })
+      add({ title: t.title, desc: t.desc, category: t.category, priority: t.priority, stage: t.stage, points: t.points }, currentUser?.id ?? null)
     )
     setAdded(true)
   }
 
   const lineCount    = input.split('\n').filter(l => l.trim()).length
   const checkedCount = checked.size
+
+  // 비로그인 안내 화면
+  if (!currentUser) {
+    return (
+      <div style={{ display: 'flex', flexDirection: 'column', flex: 1, overflow: 'hidden' }}>
+        <Topbar title="아이디어 캡처" subtitle="생각나는 할 일을 자유롭게 입력하면 AI가 백로그 형식으로 정리해줘요" />
+        <div style={{
+          flex: 1, display: 'flex', flexDirection: 'column',
+          alignItems: 'center', justifyContent: 'center',
+          background: '#F4F5F7', gap: 16, padding: 32,
+        }}>
+          <div style={{
+            width: 56, height: 56, borderRadius: 16, background: '#EFF6FF',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            fontSize: 24,
+          }}>🔒</div>
+          <p style={{ fontSize: 16, fontWeight: 700, color: '#111827' }}>팀원 선택이 필요해요</p>
+          <p style={{ fontSize: 13, color: '#9CA3AF', textAlign: 'center', lineHeight: '22px' }}>
+            아이디어 캡처는 개인 기록이에요.<br />
+            왼쪽 사이드바에서 팀원을 선택하면 바로 사용할 수 있어요.
+          </p>
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', flex: 1, overflow: 'hidden' }}>

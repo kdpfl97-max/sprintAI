@@ -2,6 +2,8 @@ import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import Topbar from '../components/layout/Topbar'
 import { useBacklogStore } from '../store/useBacklogStore'
+import { useAuthStore } from '../store/useAuthStore'
+import { useTeamStore } from '../store/useTeamStore'
 
 const PRIORITY_OPTIONS = ['Must', 'Should', 'Could', "Won't"]
 const CATEGORY_OPTIONS = ['기능', '에픽', 'UI/UX', '인프라', '버그']
@@ -40,6 +42,10 @@ const btnSecondary = { ...btnPrimary, background: '#DBEAFE', color: '#1D4ED8', b
 export default function BacklogPage() {
   const navigate = useNavigate()
   const { items, add, update, remove } = useBacklogStore()
+  const { currentUser } = useAuthStore()
+  const { members } = useTeamStore()
+  const isPM = currentUser?.role === 'PM'
+
   const [form, setForm]         = useState(EMPTY_FORM)
   const [showForm, setShowForm] = useState(false)
   const [filter, setFilter]     = useState('전체')
@@ -74,12 +80,23 @@ export default function BacklogPage() {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', flex: 1, overflow: 'hidden' }}>
       <Topbar title="백로그" subtitle={`총 ${items.length}개 태스크 · ${totalSP}sp`}>
-        <button onClick={() => navigate('/sprint/builder')} style={btnSecondary} className="btn-press">
-          AI 스프린트 생성
-        </button>
-        <button onClick={() => { setShowForm(true); setEditId(null); setForm(EMPTY_FORM) }} style={btnPrimary} className="btn-press">
-          + 태스크 추가
-        </button>
+        {isPM && (
+          <button onClick={() => navigate('/sprint/builder')} style={btnSecondary} className="btn-press">
+            AI 스프린트 생성
+          </button>
+        )}
+        {isPM && (
+          <button onClick={() => { setShowForm(true); setEditId(null); setForm(EMPTY_FORM) }} style={btnPrimary} className="btn-press">
+            + 태스크 추가
+          </button>
+        )}
+        {!isPM && (
+          <div style={{
+            fontSize: 12, fontWeight: 600, color: '#9CA3AF',
+            background: '#F4F5F7', border: '1px solid #E8EAED',
+            padding: '6px 12px', borderRadius: 9999,
+          }}>읽기 전용</div>
+        )}
       </Topbar>
 
       <div style={{ flex: 1, overflowY: 'auto', padding: '20px 24px', display: 'flex', flexDirection: 'column', gap: 18, background: '#F4F5F7' }}>
@@ -181,6 +198,7 @@ export default function BacklogPage() {
           )}
           {filtered.map(item => {
             const ps = PRIORITY_STYLE[item.priority] || PRIORITY_STYLE["Won't"]
+            const author = item.capturedBy ? members.find(m => m.id === item.capturedBy) : null
             return (
               <div key={item.id} style={{
                 ...card, padding: '14px 18px',
@@ -198,6 +216,18 @@ export default function BacklogPage() {
                   {item.desc && <p style={{ fontSize: 12, color: '#9CA3AF', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.desc}</p>}
                 </div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
+                  {/* 작성자 표시 */}
+                  {author && (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+                      <div style={{
+                        width: 20, height: 20, borderRadius: '50%',
+                        background: author.color, color: 'white',
+                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        fontSize: 9, fontWeight: 700, flexShrink: 0,
+                      }}>{author.initials}</div>
+                      <span style={{ fontSize: 11, color: '#9CA3AF' }}>{author.name}</span>
+                    </div>
+                  )}
                   {[
                     { text: item.priority, style: { background: ps.bg, color: ps.color, border: `1px solid ${ps.border}` } },
                     { text: item.category, style: { background: '#F4F5F7', color: '#4B5563', border: '1px solid #E8EAED' } },
@@ -207,12 +237,12 @@ export default function BacklogPage() {
                   ))}
                   <span style={{ fontSize: 11, fontWeight: 700, color: '#9CA3AF', width: 36, textAlign: 'right' }}>{item.points}sp</span>
                   <div style={{ display: 'flex', gap: 4, marginLeft: 4 }}>
-                    <button onClick={() => handleEdit(item)}
+                    {isPM && <button onClick={() => handleEdit(item)}
                             style={{ padding: '4px 10px', fontSize: 11, fontWeight: 600, border: '1px solid #E8EAED', borderRadius: 8, background: '#FFF', color: '#4B5563', cursor: 'pointer' }}
-                            className="btn-press-soft">수정</button>
-                    <button onClick={() => remove(item.id)}
+                            className="btn-press-soft">수정</button>}
+                    {isPM && <button onClick={() => remove(item.id)}
                             style={{ padding: '4px 10px', fontSize: 11, fontWeight: 600, border: '1px solid #FECACA', borderRadius: 8, background: '#FFF5F5', color: '#DC2626', cursor: 'pointer' }}
-                            className="btn-press-soft">삭제</button>
+                            className="btn-press-soft">삭제</button>}
                   </div>
                 </div>
               </div>

@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import Topbar from '../components/layout/Topbar'
 import { useSprintStore } from '../store/useSprintStore'
+import { useAuthStore } from '../store/useAuthStore'
 
 const PRIORITY_STYLE = {
   Must:    { bg: '#FEE2E2', color: '#DC2626', border: '#FECACA' },
@@ -15,8 +16,21 @@ const COLUMNS = [
   { id: 'done',       label: 'Done',        color: '#10B981', bg: '#F0FDF9' },
 ]
 
-function TaskCard({ task, onMove, onProgressChange }) {
-  const [hovered, setHovered] = useState(false)
+function TaskCard({ task, onMove, onProgressChange, onNoteChange, isOwner }) {
+  const [hovered, setHovered]   = useState(false)
+  const [progress, setProgress] = useState(task.progress)
+  const [note, setNote]         = useState(task.note || '')
+  const [saved, setSaved]       = useState(false)
+
+  const isDirty = progress !== task.progress || note !== (task.note || '')
+
+  function handleSave() {
+    onProgressChange(task.id, progress)
+    onNoteChange(task.id, note)
+    setSaved(true)
+    setTimeout(() => setSaved(false), 2000)
+  }
+
   const nextStatus = task.status === 'todo' ? 'inprogress' : task.status === 'inprogress' ? 'done' : null
   const prevStatus = task.status === 'done' ? 'inprogress' : task.status === 'inprogress' ? 'todo' : null
   const ps = PRIORITY_STYLE[task.priority] || PRIORITY_STYLE["Won't"]
@@ -61,16 +75,57 @@ function TaskCard({ task, onMove, onProgressChange }) {
         <div style={{ marginBottom: 10 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
             <div style={{ flex: 1, height: 4, background: '#E8EAED', borderRadius: 2, overflow: 'hidden' }}>
-              <div style={{ height: '100%', background: '#2563EB', borderRadius: 2, width: `${task.progress}%`, transition: 'width 0.3s' }} />
+              <div style={{ height: '100%', background: '#2563EB', borderRadius: 2, width: `${progress}%`, transition: 'width 0.3s' }} />
             </div>
             <span style={{ fontSize: 11, fontWeight: 700, color: '#2563EB', width: 28, textAlign: 'right' }}>
-              {task.progress}%
+              {progress}%
             </span>
           </div>
-          <input type="range" min="0" max="100" step="10"
-            value={task.progress}
-            onChange={e => onProgressChange(task.id, Number(e.target.value))}
-            style={{ width: '100%', accentColor: '#2563EB', cursor: 'pointer' }} />
+          {isOwner ? (
+            <>
+              <input type="range" min="0" max="100" step="10"
+                value={progress}
+                onChange={e => { setProgress(Number(e.target.value)); setSaved(false) }}
+                style={{ width: '100%', accentColor: '#2563EB', cursor: 'pointer' }} />
+              <textarea
+                placeholder="진행 상황을 간단히 메모해요..."
+                value={note}
+                onChange={e => { setNote(e.target.value); setSaved(false) }}
+                rows={2}
+                style={{
+                  width: '100%', marginTop: 8, padding: '8px 10px',
+                  fontSize: 12, color: '#1F2937', lineHeight: '18px',
+                  background: '#F4F5F7', border: '1px solid #E8EAED',
+                  borderRadius: 10, resize: 'none', outline: 'none',
+                  boxSizing: 'border-box', fontFamily: 'inherit',
+                }}
+                onFocus={e => { e.target.style.borderColor = '#BFDBFE'; e.target.style.background = '#FFF' }}
+                onBlur={e => { e.target.style.borderColor = '#E8EAED'; e.target.style.background = '#F4F5F7' }}
+              />
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 8, marginTop: 8 }}>
+                {saved && <span style={{ fontSize: 11, color: '#10B981', fontWeight: 600 }}>저장됨 ✓</span>}
+                <button onClick={handleSave} disabled={!isDirty}
+                  style={{
+                    padding: '5px 14px', fontSize: 12, fontWeight: 600,
+                    border: 'none', borderRadius: 8, cursor: isDirty ? 'pointer' : 'default',
+                    background: isDirty ? '#2563EB' : '#E8EAED',
+                    color: isDirty ? 'white' : '#9CA3AF',
+                  }} className="btn-press-soft">
+                  저장
+                </button>
+              </div>
+            </>
+          ) : (
+            <>
+              <div style={{ height: 4, background: '#E8EAED', borderRadius: 2, overflow: 'hidden', marginBottom: 4 }} />
+              {task.note && (
+                <p style={{
+                  marginTop: 8, padding: '7px 10px', fontSize: 12, color: '#4B5563',
+                  background: '#F4F5F7', borderRadius: 10, lineHeight: '18px',
+                }}>{task.note}</p>
+              )}
+            </>
+          )}
         </div>
       )}
 
@@ -119,20 +174,37 @@ function TaskCard({ task, onMove, onProgressChange }) {
 }
 
 export default function BoardPage() {
-  const { sprint, moveTask, updateProgress } = useSprintStore()
+  const { sprint, moveTask, updateProgress, updateNote } = useSprintStore()
+  const { currentUser } = useAuthStore()
+  const isPM = currentUser?.role === 'PM'
+  const [showAll, setShowAll] = useState(false)
 
-  const todo       = sprint.tasks.filter(t => t.status === 'todo')
-  const inprogress = sprint.tasks.filter(t => t.status === 'inprogress')
-  const done       = sprint.tasks.filter(t => t.status === 'done')
+  const visibleTasks = (isPM || showAll)
+    ? sprint.tasks
+    : sprint.tasks.filter(t => t.member?.name === currentUser?.name)
+
+  const todo       = visibleTasks.filter(t => t.status === 'todo')
+  const inprogress = visibleTasks.filter(t => t.status === 'inprogress')
+  const done       = visibleTasks.filter(t => t.status === 'done')
   const colData    = { todo, inprogress, done }
 
-  const totalSP = sprint.tasks.reduce((s, t) => s + (t.points || 0), 0)
+  const totalSP = visibleTasks.reduce((s, t) => s + (t.points || 0), 0)
   const doneSP  = done.reduce((s, t) => s + (t.points || 0), 0)
   const pct     = totalSP > 0 ? Math.round((doneSP / totalSP) * 100) : 0
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', flex: 1, overflow: 'hidden' }}>
       <Topbar title="칸반 보드" subtitle={sprint.name}>
+        {!isPM && (
+          <button onClick={() => setShowAll(p => !p)} style={{
+            padding: '0 14px', height: 36, borderRadius: 9999, fontSize: 12, fontWeight: 600, cursor: 'pointer', border: '1px solid',
+            background: showAll ? '#F4F5F7' : '#EFF6FF',
+            color:      showAll ? '#4B5563' : '#2563EB',
+            borderColor: showAll ? '#E8EAED' : '#BFDBFE',
+          }} className="btn-press-soft">
+            {showAll ? '내 태스크만' : '전체 보기'}
+          </button>
+        )}
         <div style={{ display: 'flex', alignItems: 'center', gap: 16, fontSize: 12, color: '#6B7280' }}>
           <span>{sprint.startDate} ~ {sprint.endDate}</span>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -209,7 +281,12 @@ export default function BoardPage() {
                   </div>
                 )}
                 {tasks.map(task => (
-                  <TaskCard key={task.id} task={task} onMove={moveTask} onProgressChange={updateProgress} />
+                  <TaskCard key={task.id} task={task}
+                    onMove={moveTask}
+                    onProgressChange={updateProgress}
+                    onNoteChange={updateNote}
+                    isOwner={isPM || task.member?.name === currentUser?.name}
+                  />
                 ))}
               </div>
             </div>

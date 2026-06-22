@@ -75,5 +75,13 @@ export function useSprintStore() {
     }))
   }
 
-  return { sprint, confirmSprint, moveTask, updateProgress }
+  /** 진행 메모 업데이트 */
+  function updateNote(taskId, note) {
+    setSprint(prev => ({
+      ...prev,
+      tasks: prev.tasks.map(t => t.id === taskId ? { ...t, note } : t),
+    }))
+  }
+
+  return { sprint, confirmSprint, moveTask, updateProgress, updateNote }
 }
