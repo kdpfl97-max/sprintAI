@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import Topbar from '../components/layout/Topbar'
 import { useBacklogStore } from '../store/useBacklogStore'
 import { useAuthStore } from '../store/useAuthStore'
+import { callClaude } from '../utils/claude'
 
 const PRIORITY_OPTIONS = ['Must', 'Should', 'Could', "Won't"]
 const CATEGORY_OPTIONS = ['기능', '에픽', 'UI/UX', '인프라', '버그']
@@ -62,10 +63,41 @@ export default function CapturePage() {
     const lines = input.split('\n').map(l => l.trim()).filter(Boolean)
     if (lines.length === 0) return
     setLoading(true); setTasks([]); setChecked(new Set()); setAdded(false)
-    await new Promise(r => setTimeout(r, 1500))
-    const analyzed = lines.map((line, idx) => ({ id: idx, ...analyzeTask(line) }))
-    setTasks(analyzed)
-    setChecked(new Set(analyzed.map(t => t.id)))
+
+    try {
+      const system = `당신은 스프린트 플래닝 전문가입니다. 사용자가 입력한 할 일 목록을 분석해서 JSON 배열로만 응답하세요. 다른 텍스트는 절대 포함하지 마세요.
+
+각 항목을 아래 JSON 형식으로 변환하세요:
+[
+  {
+    "title": "태스크 제목 (간결하게 다듬기)",
+    "desc": "한 줄 설명",
+    "category": "기능|에픽|UI/UX|인프라|버그 중 하나",
+    "priority": "Must|Should|Could|Won't 중 하나",
+    "stage": "MVP|v1.0|v2.0 중 하나",
+    "points": 숫자 (1~13, 피보나치: 1,2,3,5,8,13)
+  }
+]
+
+분류 기준:
+- priority Must: 없으면 서비스 불가, 핵심 기능
+- priority Should: 있으면 좋지만 MVP엔 필수 아님
+- priority Could: 여유 있을 때
+- stage MVP: 초기 출시에 반드시 필요
+- points: 복잡도 기반 (간단=2, 보통=5, 복잡=8, 매우복잡=13)`
+
+      const raw = await callClaude(system, lines.join('\n'))
+      const json = JSON.parse(raw.trim())
+      const analyzed = json.map((item, idx) => ({ id: idx, ...item }))
+      setTasks(analyzed)
+      setChecked(new Set(analyzed.map(t => t.id)))
+    } catch (e) {
+      // API 실패 시 키워드 분석으로 폴백
+      const analyzed = lines.map((line, idx) => ({ id: idx, ...analyzeTask(line) }))
+      setTasks(analyzed)
+      setChecked(new Set(analyzed.map(t => t.id)))
+    }
+
     setLoading(false)
   }
 
@@ -303,7 +335,7 @@ export default function CapturePage() {
                               onFocus={e => e.target.style.borderBottomColor = '#BFDBFE'}
                               onBlur={e => e.target.style.borderBottomColor = '#E8EAED'}
                             />
-                            <span style={{ fontSize: 12, color: '#9CA3AF', fontWeight: 600 }}>sp</span>
+                            <span style={{ fontSize: 12, color: '#9CA3AF', fontWeight: 600 }}>작업량</span>
                           </div>
                         </div>
                       </div>

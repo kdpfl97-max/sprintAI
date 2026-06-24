@@ -143,7 +143,7 @@ function TaskCard({ task, onMove, onProgressChange, onNoteChange, isOwner }) {
 
       {/* 푸터: SP + 이동 버튼 */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-        <span style={{ fontSize: 11, fontWeight: 600, color: '#9CA3AF' }}>{task.points}sp</span>
+        <span style={{ fontSize: 11, fontWeight: 600, color: '#9CA3AF' }}>{task.points}작업량</span>
         <div style={{ display: 'flex', gap: 4, opacity: hovered ? 1 : 0, transition: 'opacity 150ms' }}>
           {prevStatus && (
             <button onClick={() => onMove(task.id, prevStatus)}
@@ -178,6 +178,30 @@ export default function BoardPage() {
   const { currentUser } = useAuthStore()
   const isPM = currentUser?.role === 'PM'
   const [showAll, setShowAll] = useState(false)
+
+  // 진행 중 스프린트 없을 때 Empty State
+  if (!sprint?.status || sprint.status === 'completed') {
+    return (
+      <div style={{ display: 'flex', flexDirection: 'column', flex: 1, overflow: 'hidden' }}>
+        <Topbar title="칸반 보드" subtitle="진행 중인 스프린트 없음" />
+        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 16, background: '#F4F5F7' }}>
+          <div style={{ width: 60, height: 60, borderRadius: 18, background: '#EFF6FF', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 26 }}>📋</div>
+          <div style={{ textAlign: 'center' }}>
+            <p style={{ fontSize: 16, fontWeight: 700, color: '#111827', marginBottom: 6 }}>진행 중인 스프린트가 없어요</p>
+            <p style={{ fontSize: 13, color: '#9CA3AF' }}>
+              {sprint?.status === 'completed' ? '스프린트가 종료됐습니다. 회고 후 새 스프린트를 시작해보세요.' : 'AI 스프린트 빌더에서 스프린트를 만들어보세요.'}
+            </p>
+          </div>
+          <a href={sprint?.status === 'completed' ? '/retro' : '/sprint/builder'} style={{
+            padding: '0 20px', height: 40, borderRadius: 12, background: '#2563EB', color: '#fff',
+            fontSize: 13, fontWeight: 600, textDecoration: 'none', display: 'flex', alignItems: 'center',
+          }}>
+            {sprint?.status === 'completed' ? '회고 시작하기' : 'AI 스프린트 빌더로 이동'}
+          </a>
+        </div>
+      </div>
+    )
+  }
 
   const visibleTasks = (isPM || showAll)
     ? sprint.tasks
@@ -230,13 +254,13 @@ export default function BoardPage() {
               <div style={{ width: 8, height: 8, borderRadius: '50%', background: col.color }} />
               <span style={{ fontSize: 12, color: '#6B7280' }}>{col.label}</span>
               <span style={{ fontSize: 12, fontWeight: 700, color: '#111827' }}>{tasks.length}개</span>
-              <span style={{ fontSize: 12, color: '#9CA3AF', fontWeight: 600 }}>{sp}sp</span>
+              <span style={{ fontSize: 12, color: '#9CA3AF', fontWeight: 600 }}>{sp}작업량</span>
             </div>
           )
         })}
         <div style={{ marginLeft: 'auto', fontSize: 12, color: '#9CA3AF' }}>
-          총 <strong style={{ color: '#1F2937' }}>{totalSP}sp</strong> 중{' '}
-          <strong style={{ color: '#10B981' }}>{doneSP}sp</strong> 완료
+          총 <strong style={{ color: '#1F2937' }}>{totalSP}작업량</strong> 중{' '}
+          <strong style={{ color: '#10B981' }}>{doneSP}작업량</strong> 완료
         </div>
       </div>
 
@@ -265,7 +289,7 @@ export default function BoardPage() {
                   }}>{tasks.length}</span>
                 </div>
                 <span style={{ fontSize: 11, fontWeight: 600, color: '#9CA3AF' }}>
-                  {tasks.reduce((s, t) => s + (t.points || 0), 0)}sp
+                  {tasks.reduce((s, t) => s + (t.points || 0), 0)}작업량
                 </span>
               </div>
 

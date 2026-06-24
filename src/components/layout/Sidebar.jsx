@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { NavLink, useNavigate } from 'react-router-dom'
 import { useAuthStore } from '../../store/useAuthStore'
 import { useTeamStore } from '../../store/useTeamStore'
+import { useSprintStore } from '../../store/useSprintStore'
 
 // roles: 'PM' | 'member' | 'guest' (비로그인)
 const NAV_ITEMS = [
@@ -10,6 +11,7 @@ const NAV_ITEMS = [
   { to: '/sprint/builder', label: 'AI 스프린트 빌더', badge: null, roles: ['PM'] },
   { to: '/sprint/1/board', label: '칸반 보드',        badge: null, roles: ['PM', 'member'] },
   { to: '/dashboard',      label: '대시보드',         badge: null, roles: ['PM', 'member'] },
+  { to: '/retro',          label: '스프린트 회고',     badge: null, roles: ['PM', 'member'] },
   { to: '/team',           label: '팀 관리',          badge: null, roles: ['PM'] },
 ]
 
@@ -38,7 +40,15 @@ export default function Sidebar() {
   const navigate = useNavigate()
   const { currentUser, login, logout } = useAuthStore()
   const { members } = useTeamStore()
+  const { sprint } = useSprintStore()
   const [showPicker, setShowPicker] = useState(false)
+
+  const hasActiveSprint = sprint?.status === 'active'
+  const sprintPct = (() => {
+    if (!sprint?.tasks?.length) return 0
+    const done = sprint.tasks.filter(t => t.status === 'done').length
+    return Math.round((done / sprint.tasks.length) * 100)
+  })()
 
   const userRole = getUserRole(currentUser)
   const visibleNav = NAV_ITEMS.filter(item => item.roles.includes(userRole))
@@ -250,30 +260,34 @@ export default function Sidebar() {
       </nav>
 
       {/* 현재 스프린트 카드 */}
-      <div style={{
-        margin: '0 10px 10px',
-        padding: 14, borderRadius: 12,
-        background: C.bgDeep,
-        border: `1px solid ${C.divider}`,
-      }}>
+      <div style={{ margin: '0 10px 10px', padding: 14, borderRadius: 12, background: C.bgDeep, border: `1px solid ${C.divider}` }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
-          <p style={{ fontSize: 10, fontWeight: 600, color: C.textMuted, letterSpacing: '0.06em', textTransform: 'uppercase' }}>
-            현재 스프린트
-          </p>
+          <p style={{ fontSize: 10, fontWeight: 600, color: C.textMuted, letterSpacing: '0.06em', textTransform: 'uppercase' }}>현재 스프린트</p>
           <span style={{
-            fontSize: 10, fontWeight: 600, color: '#6EE7B7',
-            background: 'rgba(110,231,183,0.15)',
+            fontSize: 10, fontWeight: 600,
+            color:       hasActiveSprint ? '#6EE7B7' : C.textMuted,
+            background:  hasActiveSprint ? 'rgba(110,231,183,0.15)' : 'rgba(255,255,255,0.08)',
             padding: '1px 7px', borderRadius: 9999,
-          }}>진행 중</span>
+          }}>{hasActiveSprint ? '진행 중' : sprint?.status === 'completed' ? '완료' : '대기'}</span>
         </div>
-        <p style={{ fontSize: 13, fontWeight: 600, color: C.textMain, marginBottom: 10 }}>Sprint 1 — 핵심 AI</p>
-        <div style={{ height: 4, background: C.progressBg, borderRadius: 2, overflow: 'hidden', marginBottom: 6 }}>
-          <div style={{ height: '100%', width: '42%', background: C.progressFill, borderRadius: 2 }} />
-        </div>
-        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, color: C.textMuted }}>
-          <span>D-8</span>
-          <span style={{ fontWeight: 600, color: C.textSub }}>42%</span>
-        </div>
+        <p style={{ fontSize: 13, fontWeight: 600, color: C.textMain, marginBottom: 10 }}>
+          {sprint?.name || '스프린트 없음'}
+        </p>
+        {hasActiveSprint ? (
+          <>
+            <div style={{ height: 4, background: C.progressBg, borderRadius: 2, overflow: 'hidden', marginBottom: 6 }}>
+              <div style={{ height: '100%', width: `${sprintPct}%`, background: C.progressFill, borderRadius: 2 }} />
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, color: C.textMuted }}>
+              <span>{sprint.endDate}</span>
+              <span style={{ fontWeight: 600, color: C.textSub }}>{sprintPct}%</span>
+            </div>
+          </>
+        ) : (
+          <p style={{ fontSize: 11, color: C.textMuted }}>
+            {sprint?.status === 'completed' ? '회고를 진행해보세요' : '빌더에서 스프린트를 시작하세요'}
+          </p>
+        )}
       </div>
     </aside>
   )

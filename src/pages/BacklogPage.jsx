@@ -79,7 +79,7 @@ export default function BacklogPage() {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', flex: 1, overflow: 'hidden' }}>
-      <Topbar title="백로그" subtitle={`총 ${items.length}개 태스크 · ${totalSP}sp`}>
+      <Topbar title="백로그" subtitle={`총 ${items.length}개 태스크 · ${totalSP}작업량`}>
         {isPM && (
           <button onClick={() => navigate('/sprint/builder')} style={btnSecondary} className="btn-press">
             AI 스프린트 생성
@@ -136,7 +136,7 @@ export default function BacklogPage() {
                   </div>
                 ))}
                 <div>
-                  <label style={labelStyle}>스토리 포인트</label>
+                  <label style={labelStyle}>작업량</label>
                   <input type="number" min="1" max="100" style={inputStyle} placeholder="예: 5"
                     value={form.points} onChange={e => setForm(f => ({ ...f, points: e.target.value }))}
                     onFocus={e => { e.target.style.borderColor = '#BFDBFE'; e.target.style.background = '#FFF' }}
@@ -156,9 +156,9 @@ export default function BacklogPage() {
         {/* 통계 */}
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 14 }}>
           {[
-            { label: '전체 태스크', value: items.length, unit: '개', sub: `${totalSP}sp 총합` },
-            { label: 'MVP 태스크', value: items.filter(i => i.stage === 'MVP').length, unit: '개', sub: `${mvpSP}sp · Must ${items.filter(i => i.priority === 'Must').length}개` },
-            { label: '이번 스프린트 후보', value: items.filter(i => i.priority === 'Must' && i.stage === 'MVP').length, unit: '개', sub: `${items.filter(i => i.priority === 'Must' && i.stage === 'MVP').reduce((s,i)=>s+i.points,0)}sp` },
+            { label: '전체 태스크', value: items.length, unit: '개', sub: `${totalSP}작업량 총합` },
+            { label: 'MVP 태스크', value: items.filter(i => i.stage === 'MVP').length, unit: '개', sub: `${mvpSP}작업량 · Must ${items.filter(i => i.priority === 'Must').length}개` },
+            { label: '이번 스프린트 후보', value: items.filter(i => i.priority === 'Must' && i.stage === 'MVP').length, unit: '개', sub: `${items.filter(i => i.priority === 'Must' && i.stage === 'MVP').reduce((s,i)=>s+i.points,0)}작업량` },
           ].map(({ label, value, unit, sub }) => (
             <div key={label} style={{ ...card, padding: '16px 20px' }}>
               <p style={{ fontSize: 12, fontWeight: 600, color: '#9CA3AF', marginBottom: 8 }}>{label}</p>
@@ -235,7 +235,7 @@ export default function BacklogPage() {
                   ].map(({ text, style }, i) => (
                     <span key={i} style={{ fontSize: 11, fontWeight: 600, padding: '2px 8px', borderRadius: 9999, ...style }}>{text}</span>
                   ))}
-                  <span style={{ fontSize: 11, fontWeight: 700, color: '#9CA3AF', width: 36, textAlign: 'right' }}>{item.points}sp</span>
+                  <span style={{ fontSize: 11, fontWeight: 700, color: '#9CA3AF', width: 36, textAlign: 'right' }}>{item.points}작업량</span>
                   <div style={{ display: 'flex', gap: 4, marginLeft: 4 }}>
                     {isPM && <button onClick={() => handleEdit(item)}
                             style={{ padding: '4px 10px', fontSize: 11, fontWeight: 600, border: '1px solid #E8EAED', borderRadius: 8, background: '#FFF', color: '#4B5563', cursor: 'pointer' }}

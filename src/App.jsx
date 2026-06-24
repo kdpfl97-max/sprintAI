@@ -6,6 +6,7 @@ import BoardPage         from './pages/BoardPage'
 import DashboardPage     from './pages/DashboardPage'
 import CapturePage       from './pages/CapturePage'
 import TeamPage          from './pages/TeamPage'
+import RetroPage         from './pages/RetroPage'
 import LoginPage         from './pages/LoginPage'
 import OnboardingPage    from './pages/OnboardingPage'
 import NotFoundPage      from './pages/NotFoundPage'
@@ -37,6 +38,7 @@ export default function App() {
         <Route path="/dashboard"               element={<DashboardPage />} />
         <Route path="/capture"                 element={<CapturePage />} />
         <Route path="/team"                    element={<TeamPage />} />
+        <Route path="/retro"                   element={<RetroPage />} />
       </Route>
 
       <Route path="*" element={<NotFoundPage />} />

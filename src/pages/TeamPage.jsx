@@ -177,7 +177,7 @@ export default function TeamPage() {
                   {[
                     { label: 'Capacity', value: member.capacity, unit: 'h' },
                     { label: '태스크', value: `${stats.done}/${stats.total}`, unit: '' },
-                    { label: '완료 SP', value: stats.doneSp, unit: `/${stats.sp}`, valueColor: member.color },
+                    { label: '완료 작업량', value: stats.doneSp, unit: `/${stats.sp}`, valueColor: member.color },
                   ].map(({ label, value, unit, valueColor }) => (
                     <div key={label} style={{ textAlign: 'center', padding: '0 16px', borderLeft: '1px solid #E8EAED' }}>
                       <p style={{ fontSize: 11, color: '#9CA3AF', marginBottom: 4 }}>{label}</p>
@@ -216,7 +216,7 @@ export default function TeamPage() {
                             background: t.status === 'done' ? '#10B981' : t.status === 'inprogress' ? '#2563EB' : '#D1D5DB',
                           }} />
                           <span style={{ fontSize: 11, color: '#6B7280', maxWidth: 120, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{t.title}</span>
-                          <span style={{ fontSize: 10, color: '#9CA3AF', fontWeight: 600 }}>{t.points}sp</span>
+                          <span style={{ fontSize: 10, color: '#9CA3AF', fontWeight: 600 }}>{t.points}작업량</span>
                         </div>
                       ))}
                     </div>
