@@ -5,9 +5,10 @@ import { useBacklogStore } from '../store/useBacklogStore'
 import { useAuthStore } from '../store/useAuthStore'
 import { callClaude } from '../utils/claude'
 
-const PRIORITY_OPTIONS = ['Must', 'Should', 'Could', "Won't"]
-const CATEGORY_OPTIONS = ['기능', '에픽', 'UI/UX', '인프라', '버그']
-const STAGE_OPTIONS    = ['MVP', 'v1.0', 'v2.0']
+const PRIORITY_OPTIONS   = ['Must', 'Should', 'Could', "Won't"]
+const CATEGORY_OPTIONS   = ['기능', '에픽', 'UI/UX', '인프라', '버그']
+const STAGE_OPTIONS      = ['MVP', 'v1.0', 'v2.0']
+const DIFFICULTY_OPTIONS = ['낮음', '보통', '높음']
 
 const PRIORITY_STYLE = {
   Must:    { bg: '#FEE2E2', color: '#DC2626', border: '#FECACA' },
@@ -37,9 +38,10 @@ function analyzeTask(text) {
 
   const isComplex = /연동|API|알고리즘|설계|에픽|모듈/.test(t)
   const isSimple  = /버튼|색상|텍스트|라벨|수정|픽스/.test(t)
-  const points    = isSimple ? 2 : isComplex ? 8 : 5
+  const estimatedHours = isSimple ? 2 : isComplex ? 8 : 4
+  const difficulty     = isComplex ? '높음' : isSimple ? '낮음' : '보통'
 
-  return { title: t, category, priority, stage, points, desc: '' }
+  return { title: t, category, priority, stage, estimatedHours, difficulty, desc: '' }
 }
 
 const card = { background: '#FFFFFF', border: '1px solid #E8EAED', borderRadius: 16, boxShadow: '0 1px 2px rgba(17,24,39,0.04)' }
@@ -75,7 +77,8 @@ export default function CapturePage() {
     "category": "기능|에픽|UI/UX|인프라|버그 중 하나",
     "priority": "Must|Should|Could|Won't 중 하나",
     "stage": "MVP|v1.0|v2.0 중 하나",
-    "points": 숫자 (1~13, 피보나치: 1,2,3,5,8,13)
+    "estimatedHours": 숫자 (0.5~40, 예상 소요 시간),
+    "difficulty": "낮음" | "보통" | "높음"
   }
 ]
 
@@ -84,7 +87,8 @@ export default function CapturePage() {
 - priority Should: 있으면 좋지만 MVP엔 필수 아님
 - priority Could: 여유 있을 때
 - stage MVP: 초기 출시에 반드시 필요
-- points: 복잡도 기반 (간단=2, 보통=5, 복잡=8, 매우복잡=13)`
+- estimatedHours: 실제 소요 예상 시간 (간단 작업=1~2, 보통=4~8, 복잡=10~20)
+- difficulty: 낮음(단순 반복/UI 수정), 보통(일반 기능 구현), 높음(설계·알고리즘·연동)`
 
       const raw = await callClaude(system, lines.join('\n'))
       const json = JSON.parse(raw.trim())
@@ -111,7 +115,12 @@ export default function CapturePage() {
 
   function handleAddToBacklog() {
     tasks.filter(t => checked.has(t.id)).forEach(t =>
-      add({ title: t.title, desc: t.desc, category: t.category, priority: t.priority, stage: t.stage, points: t.points }, currentUser?.id ?? null)
+      add({
+        title: t.title, desc: t.desc, category: t.category,
+        priority: t.priority, stage: t.stage,
+        estimatedHours: t.estimatedHours || 0,
+        difficulty: t.difficulty || '보통',
+      }, currentUser?.id ?? null)
     )
     setAdded(true)
   }
@@ -123,7 +132,7 @@ export default function CapturePage() {
   if (!currentUser) {
     return (
       <div style={{ display: 'flex', flexDirection: 'column', flex: 1, overflow: 'hidden' }}>
-        <Topbar title="아이디어 캡처" subtitle="생각나는 할 일을 자유롭게 입력하면 AI가 백로그 형식으로 정리해줘요" />
+        <Topbar title="아이디어 캡처" subtitle="생각나는 할 일을 자유롭게 입력하면 AI가 할 일 형식으로 분류해줘요" />
         <div style={{
           flex: 1, display: 'flex', flexDirection: 'column',
           alignItems: 'center', justifyContent: 'center',
@@ -146,17 +155,17 @@ export default function CapturePage() {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', flex: 1, overflow: 'hidden' }}>
-      <Topbar title="아이디어 캡처" subtitle="생각나는 할 일을 자유롭게 입력하면 AI가 백로그 형식으로 정리해줘요">
+      <Topbar title="아이디어 캡처" subtitle="생각나는 할 일을 자유롭게 입력하면 AI가 할 일 형식으로 분류해줘요">
         {tasks.length > 0 && !added && (
           <button onClick={handleAddToBacklog} disabled={checkedCount === 0}
                   style={{ ...btnPositive, opacity: checkedCount === 0 ? 0.4 : 1 }}
                   className="btn-press">
-            백로그에 추가 ({checkedCount}개)
+            전체 할 일에 추가 ({checkedCount}개)
           </button>
         )}
         {added && (
           <button onClick={() => navigate('/backlog')} style={btnSecondary} className="btn-press">
-            백로그 확인하기
+            전체 할 일 확인하기
           </button>
         )}
       </Topbar>
@@ -228,8 +237,8 @@ export default function CapturePage() {
                   fontSize: 15, flexShrink: 0,
                 }}>✓</div>
                 <div>
-                  <p style={{ fontSize: 13, fontWeight: 600, color: '#065F46' }}>백로그에 추가했어요!</p>
-                  <p style={{ fontSize: 12, color: '#059669', marginTop: 2 }}>{checkedCount}개 태스크가 백로그에 반영되었습니다.</p>
+                  <p style={{ fontSize: 13, fontWeight: 600, color: '#065F46' }}>전체 할 일에 추가했어요!</p>
+                  <p style={{ fontSize: 12, color: '#059669', marginTop: 2 }}>{checkedCount}개 태스크가 전체 할 일에 반영되었습니다.</p>
                 </div>
               </div>
             )}
@@ -322,12 +331,12 @@ export default function CapturePage() {
                             {STAGE_OPTIONS.map(s => <option key={s}>{s}</option>)}
                           </select>
 
-                          <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginLeft: 'auto' }}>
-                            <input type="number" min="1" max="100"
-                              value={task.points}
-                              onChange={e => updateTask(task.id, 'points', Number(e.target.value))}
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginLeft: 'auto' }}>
+                            <input type="number" min="0.5" max="40" step="0.5"
+                              value={task.estimatedHours}
+                              onChange={e => updateTask(task.id, 'estimatedHours', Number(e.target.value))}
                               style={{
-                                width: 36, fontSize: 12, fontWeight: 700, color: '#4B5563',
+                                width: 40, fontSize: 12, fontWeight: 700, color: '#4B5563',
                                 textAlign: 'center', background: 'transparent',
                                 border: 'none', borderBottom: '1px solid #E8EAED',
                                 outline: 'none',
@@ -335,7 +344,12 @@ export default function CapturePage() {
                               onFocus={e => e.target.style.borderBottomColor = '#BFDBFE'}
                               onBlur={e => e.target.style.borderBottomColor = '#E8EAED'}
                             />
-                            <span style={{ fontSize: 12, color: '#9CA3AF', fontWeight: 600 }}>작업량</span>
+                            <span style={{ fontSize: 12, color: '#9CA3AF', fontWeight: 600 }}>시간</span>
+                            <select value={task.difficulty}
+                              onChange={e => updateTask(task.id, 'difficulty', e.target.value)}
+                              style={{ fontSize: 11, fontWeight: 600, padding: '3px 8px', borderRadius: 9999, border: '1px solid #E8EAED', background: '#F4F5F7', color: '#4B5563', cursor: 'pointer', outline: 'none', appearance: 'none' }}>
+                              {DIFFICULTY_OPTIONS.map(d => <option key={d}>{d}</option>)}
+                            </select>
                           </div>
                         </div>
                       </div>
@@ -355,7 +369,7 @@ export default function CapturePage() {
                         opacity: checkedCount === 0 ? 0.4 : 1,
                       }}
                       className="btn-press">
-                선택한 {checkedCount}개 백로그에 추가하기
+                선택한 {checkedCount}개 전체 할 일에 추가하기
               </button>
             )}
           </div>

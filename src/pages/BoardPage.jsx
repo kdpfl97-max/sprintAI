@@ -11,16 +11,34 @@ const PRIORITY_STYLE = {
 }
 
 const COLUMNS = [
-  { id: 'todo',       label: 'To Do',      color: '#9CA3AF', bg: '#F9FAFB' },
-  { id: 'inprogress', label: 'In Progress', color: '#2563EB', bg: '#F0F6FF' },
-  { id: 'done',       label: 'Done',        color: '#10B981', bg: '#F0FDF9' },
+  { id: 'todo',       label: '시작 전',  color: '#9CA3AF', bg: '#F9FAFB' },
+  { id: 'inprogress', label: '진행 중',  color: '#2563EB', bg: '#F0F6FF' },
+  { id: 'done',       label: '완료',     color: '#10B981', bg: '#F0FDF9' },
 ]
 
-function TaskCard({ task, onMove, onProgressChange, onNoteChange, isOwner }) {
-  const [hovered, setHovered]   = useState(false)
-  const [progress, setProgress] = useState(task.progress)
-  const [note, setNote]         = useState(task.note || '')
-  const [saved, setSaved]       = useState(false)
+// 날짜 임박 여부 (3일 이내)
+function isDueSoon(dateStr) {
+  if (!dateStr) return false
+  const d = new Date(dateStr)
+  const now = new Date(); now.setHours(0, 0, 0, 0)
+  const diff = Math.ceil((d - now) / 86400000)
+  return diff >= 0 && diff <= 3
+}
+
+function isOverdue(dateStr) {
+  if (!dateStr) return false
+  const d = new Date(dateStr)
+  const now = new Date(); now.setHours(0, 0, 0, 0)
+  return d < now
+}
+
+function TaskCard({ task, allTasks, onMove, onProgressChange, onNoteChange, onOutputLink, isOwner }) {
+  const [hovered,       setHovered]       = useState(false)
+  const [progress,      setProgress]      = useState(task.progress)
+  const [note,          setNote]          = useState(task.note || '')
+  const [outputLink,    setOutputLink]    = useState(task.outputLink || '')
+  const [editOutput,    setEditOutput]    = useState(false)
+  const [saved,         setSaved]         = useState(false)
 
   const isDirty = progress !== task.progress || note !== (task.note || '')
 
@@ -31,10 +49,22 @@ function TaskCard({ task, onMove, onProgressChange, onNoteChange, isOwner }) {
     setTimeout(() => setSaved(false), 2000)
   }
 
+  function handleOutputSave() {
+    onOutputLink(task.id, outputLink)
+    setEditOutput(false)
+  }
+
   const nextStatus = task.status === 'todo' ? 'inprogress' : task.status === 'inprogress' ? 'done' : null
   const prevStatus = task.status === 'done' ? 'inprogress' : task.status === 'inprogress' ? 'todo' : null
   const ps = PRIORITY_STYLE[task.priority] || PRIORITY_STYLE["Won't"]
-  const nextCol = COLUMNS.find(c => c.id === nextStatus)
+
+  // 선행 업무 찾기
+  const blockerTask = task.blocker ? allTasks.find(t => t.id === task.blocker) : null
+  const isBlocked   = !!blockerTask && blockerTask.status !== 'done'
+
+  const dueSoon  = isDueSoon(task.dueDate)
+  const overdue  = isOverdue(task.dueDate)
+  const hasDue   = !!task.dueDate && task.status !== 'done'
 
   return (
     <div
@@ -42,21 +72,35 @@ function TaskCard({ task, onMove, onProgressChange, onNoteChange, isOwner }) {
       onMouseLeave={() => setHovered(false)}
       style={{
         background: '#FFFFFF',
-        border: `1px solid ${hovered ? '#D1D5DB' : '#E8EAED'}`,
+        border: `1px solid ${isBlocked ? '#FECACA' : hovered ? '#D1D5DB' : '#E8EAED'}`,
+        borderLeft: isBlocked ? '4px solid #EF4444' : undefined,
         borderRadius: 14,
-        padding: '14px 14px 12px',
+        padding: isBlocked ? '14px 14px 12px 12px' : '14px 14px 12px',
         boxShadow: hovered ? '0 2px 8px rgba(17,24,39,0.08)' : '0 1px 2px rgba(17,24,39,0.04)',
         transition: 'box-shadow 150ms, border-color 150ms',
       }}
     >
+      {/* 블로커 배지 */}
+      {isBlocked && (
+        <div style={{ marginBottom: 8, padding: '7px 10px', borderRadius: 8, background: '#FFF5F5', border: '1px solid #FECACA' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 3 }}>
+            <span style={{ fontSize: 10, fontWeight: 700, color: '#DC2626', background: '#FEE2E2', border: '1px solid #FECACA', padding: '1px 6px', borderRadius: 9999 }}>🔴 블로커</span>
+          </div>
+          <p style={{ fontSize: 11, color: '#DC2626', lineHeight: 1.5 }}>
+            선행 업무 완료 전까지 시작 불가:<br />
+            <strong>{blockerTask.title}</strong> ({blockerTask.member?.name || '미배정'})
+          </p>
+        </div>
+      )}
+
       {/* 헤더: 우선순위 + 아바타 */}
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
         <span style={{
           fontSize: 11, fontWeight: 600, padding: '2px 8px', borderRadius: 9999,
           background: ps.bg, color: ps.color, border: `1px solid ${ps.border}`,
         }}>{task.priority}</span>
         {task.member && (
-          <div style={{
+          <div title={task.member.name} style={{
             width: 24, height: 24, borderRadius: '50%', flexShrink: 0,
             background: task.member.color, color: 'white',
             display: 'flex', alignItems: 'center', justifyContent: 'center',
@@ -66,13 +110,34 @@ function TaskCard({ task, onMove, onProgressChange, onNoteChange, isOwner }) {
       </div>
 
       {/* 제목 */}
-      <p style={{ fontSize: 13, fontWeight: 600, color: '#111827', lineHeight: '20px', marginBottom: 10 }}>
+      <p style={{ fontSize: 13, fontWeight: 600, color: '#111827', lineHeight: '20px', marginBottom: 8 }}>
         {task.title}
       </p>
 
+      {/* 마감일 */}
+      {hasDue && (
+        <div style={{
+          display: 'inline-flex', alignItems: 'center', gap: 4, marginBottom: 8,
+          fontSize: 11, fontWeight: 600,
+          color: overdue ? '#DC2626' : dueSoon ? '#D97706' : '#9CA3AF',
+          background: overdue ? '#FEE2E2' : dueSoon ? '#FEF3C7' : '#F4F5F7',
+          border: `1px solid ${overdue ? '#FECACA' : dueSoon ? '#FDE68A' : '#E8EAED'}`,
+          padding: '2px 8px', borderRadius: 9999,
+        }}>
+          📅 {overdue ? '기한 초과' : dueSoon ? '마감 임박'  : '마감'} · {task.dueDate}
+        </div>
+      )}
+
+      {/* 완료 조건 */}
+      {task.doneCondition && task.status !== 'done' && (
+        <div style={{ marginBottom: 8, padding: '7px 10px', borderRadius: 8, background: '#F0F9FF', border: '1px solid #BAE6FD', fontSize: 11, color: '#0369A1' }}>
+          ✅ 완료 기준: {task.doneCondition}
+        </div>
+      )}
+
       {/* 진행률 (inprogress) */}
       {task.status === 'inprogress' && (
-        <div style={{ marginBottom: 10 }}>
+        <div style={{ marginBottom: 8 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
             <div style={{ flex: 1, height: 4, background: '#E8EAED', borderRadius: 2, overflow: 'hidden' }}>
               <div style={{ height: '100%', background: '#2563EB', borderRadius: 2, width: `${progress}%`, transition: 'width 0.3s' }} />
@@ -116,56 +181,90 @@ function TaskCard({ task, onMove, onProgressChange, onNoteChange, isOwner }) {
               </div>
             </>
           ) : (
-            <>
-              <div style={{ height: 4, background: '#E8EAED', borderRadius: 2, overflow: 'hidden', marginBottom: 4 }} />
-              {task.note && (
-                <p style={{
-                  marginTop: 8, padding: '7px 10px', fontSize: 12, color: '#4B5563',
-                  background: '#F4F5F7', borderRadius: 10, lineHeight: '18px',
-                }}>{task.note}</p>
-              )}
-            </>
+            task.note && (
+              <p style={{
+                marginTop: 8, padding: '7px 10px', fontSize: 12, color: '#4B5563',
+                background: '#F4F5F7', borderRadius: 10, lineHeight: '18px',
+              }}>{task.note}</p>
+            )
           )}
         </div>
       )}
 
-      {/* 완료 바 (done) */}
+      {/* 완료 상태 */}
       {task.status === 'done' && (
-        <div style={{ marginBottom: 10 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <div style={{ flex: 1, height: 4, background: '#D1FAE5', borderRadius: 2, overflow: 'hidden' }}>
+        <div style={{ marginBottom: 8 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+            <div style={{ flex: 1, height: 4, background: '#D1FAE5', borderRadius: 2 }}>
               <div style={{ height: '100%', background: '#10B981', borderRadius: 2, width: '100%' }} />
             </div>
-            <span style={{ fontSize: 11, fontWeight: 700, color: '#10B981' }}>100%</span>
+            <span style={{ fontSize: 11, fontWeight: 700, color: '#10B981' }}>완료</span>
           </div>
+          {/* 산출물 링크 */}
+          {task.outputLink ? (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 10px', borderRadius: 8, background: '#F0FDF9', border: '1px solid #A7F3D0' }}>
+              <span style={{ fontSize: 11 }}>🔗</span>
+              <a href={task.outputLink} target="_blank" rel="noreferrer"
+                style={{ fontSize: 11, fontWeight: 600, color: '#059669', textDecoration: 'none', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                산출물 보기
+              </a>
+              {isOwner && (
+                <button onClick={() => setEditOutput(true)}
+                  style={{ fontSize: 10, color: '#9CA3AF', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>수정</button>
+              )}
+            </div>
+          ) : isOwner ? (
+            editOutput ? (
+              <div style={{ display: 'flex', gap: 6 }}>
+                <input value={outputLink} onChange={e => setOutputLink(e.target.value)}
+                  placeholder="산출물 링크 (URL)" autoFocus
+                  style={{ flex: 1, fontSize: 12, padding: '6px 10px', borderRadius: 8, border: '1px solid #BFDBFE', outline: 'none' }} />
+                <button onClick={handleOutputSave}
+                  style={{ padding: '0 10px', fontSize: 11, fontWeight: 600, borderRadius: 8, border: 'none', background: '#059669', color: '#fff', cursor: 'pointer' }}>저장</button>
+                <button onClick={() => setEditOutput(false)}
+                  style={{ padding: '0 10px', fontSize: 11, borderRadius: 8, border: '1px solid #E8EAED', background: '#F4F5F7', color: '#6B7280', cursor: 'pointer' }}>취소</button>
+              </div>
+            ) : (
+              <button onClick={() => setEditOutput(true)}
+                style={{ width: '100%', padding: '6px', fontSize: 11, fontWeight: 600, borderRadius: 8, border: '1.5px dashed #A7F3D0', background: 'transparent', color: '#059669', cursor: 'pointer' }}>
+                + 산출물 링크 등록
+              </button>
+            )
+          ) : (
+            <p style={{ fontSize: 11, color: '#9CA3AF' }}>산출물 링크 없음</p>
+          )}
         </div>
       )}
 
-      {/* 푸터: SP + 이동 버튼 */}
+      {/* 푸터: 예상 시간 + 이동 버튼 */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-        <span style={{ fontSize: 11, fontWeight: 600, color: '#9CA3AF' }}>{task.points}작업량</span>
+        <span style={{ fontSize: 11, fontWeight: 600, color: '#9CA3AF' }}>
+          {task.estimatedHours > 0 ? `${task.estimatedHours}시간` : '—'}
+        </span>
         <div style={{ display: 'flex', gap: 4, opacity: hovered ? 1 : 0, transition: 'opacity 150ms' }}>
           {prevStatus && (
             <button onClick={() => onMove(task.id, prevStatus)}
-                    style={{
-                      padding: '4px 10px', fontSize: 11, fontWeight: 600,
-                      border: '1px solid #E8EAED', borderRadius: 8,
-                      background: '#F4F5F7', color: '#4B5563', cursor: 'pointer',
-                    }}
-                    className="btn-press-soft">
+              style={{
+                padding: '4px 10px', fontSize: 11, fontWeight: 600,
+                border: '1px solid #E8EAED', borderRadius: 8,
+                background: '#F4F5F7', color: '#4B5563', cursor: 'pointer',
+              }} className="btn-press-soft">
               이전
             </button>
           )}
-          {nextStatus && (
+          {nextStatus && !isBlocked && (
             <button onClick={() => onMove(task.id, nextStatus)}
-                    style={{
-                      padding: '4px 10px', fontSize: 11, fontWeight: 600,
-                      border: 'none', borderRadius: 8,
-                      background: nextCol?.color || '#2563EB', color: 'white', cursor: 'pointer',
-                    }}
-                    className="btn-press-soft">
+              style={{
+                padding: '4px 10px', fontSize: 11, fontWeight: 600,
+                border: 'none', borderRadius: 8,
+                background: nextStatus === 'done' ? '#10B981' : '#2563EB',
+                color: 'white', cursor: 'pointer',
+              }} className="btn-press-soft">
               {nextStatus === 'done' ? '완료' : '시작'}
             </button>
+          )}
+          {nextStatus && isBlocked && (
+            <span style={{ fontSize: 11, color: '#DC2626', fontWeight: 600, padding: '4px 6px' }}>선행 대기 중</span>
           )}
         </div>
       </div>
@@ -174,12 +273,15 @@ function TaskCard({ task, onMove, onProgressChange, onNoteChange, isOwner }) {
 }
 
 export default function BoardPage() {
-  const { sprint, moveTask, updateProgress, updateNote } = useSprintStore()
+  const { sprint, moveTask, updateProgress, updateNote, updateTask } = useSprintStore()
   const { currentUser } = useAuthStore()
   const isPM = currentUser?.role === 'PM'
   const [showAll, setShowAll] = useState(false)
 
-  // 진행 중 스프린트 없을 때 Empty State
+  function handleOutputLink(taskId, link) {
+    updateTask(taskId, { outputLink: link })
+  }
+
   if (!sprint?.status || sprint.status === 'completed') {
     return (
       <div style={{ display: 'flex', flexDirection: 'column', flex: 1, overflow: 'hidden' }}>
@@ -189,36 +291,50 @@ export default function BoardPage() {
           <div style={{ textAlign: 'center' }}>
             <p style={{ fontSize: 16, fontWeight: 700, color: '#111827', marginBottom: 6 }}>진행 중인 스프린트가 없어요</p>
             <p style={{ fontSize: 13, color: '#9CA3AF' }}>
-              {sprint?.status === 'completed' ? '스프린트가 종료됐습니다. 회고 후 새 스프린트를 시작해보세요.' : 'AI 스프린트 빌더에서 스프린트를 만들어보세요.'}
+              {sprint?.status === 'completed' ? '스프린트가 종료됐어요. 회고 후 새 계획을 시작해보세요.' : '이번 계획 만들기에서 스프린트를 만들어보세요.'}
             </p>
           </div>
           <a href={sprint?.status === 'completed' ? '/retro' : '/sprint/builder'} style={{
             padding: '0 20px', height: 40, borderRadius: 12, background: '#2563EB', color: '#fff',
             fontSize: 13, fontWeight: 600, textDecoration: 'none', display: 'flex', alignItems: 'center',
           }}>
-            {sprint?.status === 'completed' ? '회고 시작하기' : 'AI 스프린트 빌더로 이동'}
+            {sprint?.status === 'completed' ? '회고 시작하기' : '이번 계획 만들기로 이동'}
           </a>
         </div>
       </div>
     )
   }
 
+  const allTasks = sprint.tasks
+
   const visibleTasks = (isPM || showAll)
-    ? sprint.tasks
-    : sprint.tasks.filter(t => t.member?.name === currentUser?.name)
+    ? allTasks
+    : allTasks.filter(t => t.member?.name === currentUser?.name)
 
   const todo       = visibleTasks.filter(t => t.status === 'todo')
   const inprogress = visibleTasks.filter(t => t.status === 'inprogress')
   const done       = visibleTasks.filter(t => t.status === 'done')
   const colData    = { todo, inprogress, done }
 
-  const totalSP = visibleTasks.reduce((s, t) => s + (t.points || 0), 0)
-  const doneSP  = done.reduce((s, t) => s + (t.points || 0), 0)
-  const pct     = totalSP > 0 ? Math.round((doneSP / totalSP) * 100) : 0
+  const totalH = visibleTasks.reduce((s, t) => s + (t.estimatedHours || 0), 0)
+  const doneH  = done.reduce((s, t) => s + (t.estimatedHours || 0), 0)
+  const pct    = totalH > 0 ? Math.round((doneH / totalH) * 100) : 0
+
+  // 블로커 수 (전체 기준)
+  const blockerCount = allTasks.filter(t => {
+    if (!t.blocker) return false
+    const dep = allTasks.find(x => x.id === t.blocker)
+    return dep && dep.status !== 'done'
+  }).length
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', flex: 1, overflow: 'hidden' }}>
       <Topbar title="칸반 보드" subtitle={sprint.name}>
+        {blockerCount > 0 && (
+          <span style={{ fontSize: 11, fontWeight: 700, color: '#DC2626', background: '#FEE2E2', border: '1px solid #FECACA', padding: '4px 10px', borderRadius: 9999 }}>
+            🔴 블로커 {blockerCount}개
+          </span>
+        )}
         {!isPM && (
           <button onClick={() => setShowAll(p => !p)} style={{
             padding: '0 14px', height: 36, borderRadius: 9999, fontSize: 12, fontWeight: 600, cursor: 'pointer', border: '1px solid',
@@ -226,7 +342,7 @@ export default function BoardPage() {
             color:      showAll ? '#4B5563' : '#2563EB',
             borderColor: showAll ? '#E8EAED' : '#BFDBFE',
           }} className="btn-press-soft">
-            {showAll ? '내 태스크만' : '전체 보기'}
+            {showAll ? '내 업무만' : '전체 보기'}
           </button>
         )}
         <div style={{ display: 'flex', alignItems: 'center', gap: 16, fontSize: 12, color: '#6B7280' }}>
@@ -237,7 +353,7 @@ export default function BoardPage() {
             </div>
             <span style={{ fontWeight: 700, color: '#2563EB' }}>{pct}%</span>
           </div>
-          <span>{done.length}/{sprint.tasks.length} 완료</span>
+          <span>{done.length}/{visibleTasks.length} 완료</span>
         </div>
       </Topbar>
 
@@ -248,19 +364,19 @@ export default function BoardPage() {
       }}>
         {COLUMNS.map(col => {
           const tasks = colData[col.id]
-          const sp    = tasks.reduce((s, t) => s + (t.points || 0), 0)
+          const hours = tasks.reduce((s, t) => s + (t.estimatedHours || 0), 0)
           return (
             <div key={col.id} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
               <div style={{ width: 8, height: 8, borderRadius: '50%', background: col.color }} />
               <span style={{ fontSize: 12, color: '#6B7280' }}>{col.label}</span>
               <span style={{ fontSize: 12, fontWeight: 700, color: '#111827' }}>{tasks.length}개</span>
-              <span style={{ fontSize: 12, color: '#9CA3AF', fontWeight: 600 }}>{sp}작업량</span>
+              {hours > 0 && <span style={{ fontSize: 12, color: '#9CA3AF', fontWeight: 600 }}>{hours}시간</span>}
             </div>
           )
         })}
         <div style={{ marginLeft: 'auto', fontSize: 12, color: '#9CA3AF' }}>
-          총 <strong style={{ color: '#1F2937' }}>{totalSP}작업량</strong> 중{' '}
-          <strong style={{ color: '#10B981' }}>{doneSP}작업량</strong> 완료
+          총 <strong style={{ color: '#1F2937' }}>{totalH}시간</strong> 중{' '}
+          <strong style={{ color: '#10B981' }}>{doneH}시간</strong> 완료
         </div>
       </div>
 
@@ -289,7 +405,7 @@ export default function BoardPage() {
                   }}>{tasks.length}</span>
                 </div>
                 <span style={{ fontSize: 11, fontWeight: 600, color: '#9CA3AF' }}>
-                  {tasks.reduce((s, t) => s + (t.points || 0), 0)}작업량
+                  {tasks.reduce((s, t) => s + (t.estimatedHours || 0), 0)}시간
                 </span>
               </div>
 
@@ -301,14 +417,15 @@ export default function BoardPage() {
                     height: 80, fontSize: 12, color: '#9CA3AF',
                     border: '1.5px dashed #E8EAED', borderRadius: 12, margin: '4px 0',
                   }}>
-                    태스크 없음
+                    업무 없음
                   </div>
                 )}
                 {tasks.map(task => (
-                  <TaskCard key={task.id} task={task}
+                  <TaskCard key={task.id} task={task} allTasks={allTasks}
                     onMove={moveTask}
                     onProgressChange={updateProgress}
                     onNoteChange={updateNote}
+                    onOutputLink={handleOutputLink}
                     isOwner={isPM || task.member?.name === currentUser?.name}
                   />
                 ))}

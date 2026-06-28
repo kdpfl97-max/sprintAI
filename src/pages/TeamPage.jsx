@@ -99,7 +99,7 @@ export default function TeamPage() {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', flex: 1, overflow: 'hidden' }}>
-      <Topbar title="팀 관리" subtitle={`총 ${members.length}명 · 스프린트 Capacity ${totalCapacity}h`}>
+      <Topbar title="팀 관리" subtitle={`총 ${members.length}명 · 스프린트 가용 시간 ${totalCapacity}시간`}>
         <button onClick={() => { setShowAdd(true); setEditId(null) }} style={btnPrimary} className="btn-press">
           + 팀원 초대
         </button>

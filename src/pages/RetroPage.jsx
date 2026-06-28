@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import Topbar from '../components/layout/Topbar'
 import { useSprintStore } from '../store/useSprintStore'
 import { useAuthStore } from '../store/useAuthStore'
+import { useTeamStore } from '../store/useTeamStore'
 
 const SECTIONS = [
   { key: 'liked',   label: '👍 Liked',      desc: '잘 됐던 것, 좋았던 것',              color: '#10B981', bg: '#F0FDF4', border: '#A7F3D0' },
@@ -67,6 +68,7 @@ function Avatar({ initials, color, size = 28, fontSize = 11 }) {
 export default function RetroPage() {
   const { sprint }       = useSprintStore()
   const { currentUser }  = useAuthStore()
+  const { members }      = useTeamStore()
   const navigate         = useNavigate()
   const isPM             = currentUser?.role === 'PM'
 
@@ -76,11 +78,11 @@ export default function RetroPage() {
   const [aiRetro,   setAiRetro]   = useState(null)
   const [aiLoading, setAiLoading] = useState(false)
 
-  const tasks   = sprint.tasks
-  const done    = tasks.filter(t => t.status === 'done')
-  const totalSP = tasks.reduce((s, t) => s + (t.points || 0), 0)
-  const doneSP  = done.reduce((s, t) => s + (t.points || 0), 0)
-  const pct     = totalSP > 0 ? Math.round((doneSP / totalSP) * 100) : 0
+  const tasks    = sprint.tasks
+  const done     = tasks.filter(t => t.status === 'done')
+  const totalH   = tasks.reduce((s, t) => s + (t.estimatedHours || 0), 0)
+  const doneH    = done.reduce((s, t) => s + (t.estimatedHours || 0), 0)
+  const pct      = totalH > 0 ? Math.round((doneH / totalH) * 100) : 0
   const blockers = tasks.filter(t => t.status === 'inprogress' && t.progress === 0)
 
   function handleAdd(key) {
@@ -124,7 +126,7 @@ export default function RetroPage() {
               display: 'flex', alignItems: 'center', gap: 6,
             }}
           >
-            {aiLoading ? '⏳ AI 분석 중...' : '✨ AI 회고 생성'}
+            {aiLoading ? '⏳ AI 회고 초안 만드는 중...' : '✨ AI 회고 초안 만들기'}
           </button>
         )}
       </Topbar>
@@ -141,10 +143,10 @@ export default function RetroPage() {
           </div>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 16 }}>
             {[
-              { label: '완료 태스크', value: done.length,  unit: `/${tasks.length}개` },
-              { label: '완료 작업량', value: doneSP,       unit: `/${totalSP}작업량` },
+              { label: '완료 업무',   value: done.length,  unit: `/${tasks.length}개` },
+              { label: '완료 시간',   value: doneH,        unit: `/${totalH}시간` },
               { label: '완료율',      value: pct,          unit: '%' },
-              { label: '블로커',      value: blockers.length, unit: '개', warn: blockers.length > 0 },
+              { label: '미완료 블로커', value: blockers.length, unit: '개', warn: blockers.length > 0 },
             ].map(({ label, value, unit, warn }) => (
               <div key={label} style={{ textAlign: 'center' }}>
                 <div style={{ fontSize: 26, fontWeight: 800, color: warn ? '#EF4444' : '#111827' }}>
@@ -202,83 +204,157 @@ export default function RetroPage() {
             <div style={{ fontSize: 24, marginBottom: 8 }}>✨</div>
             <div style={{ fontSize: 14, fontWeight: 600, color: '#1D4ED8', marginBottom: 6 }}>AI 회고 생성</div>
             <div style={{ fontSize: 13, color: '#6B7280', marginBottom: 14 }}>
-              칸반 데이터와 블로커 분석을 바탕으로 AI가 회고 초안을 자동 생성합니다
+              스프린트 완료율, 블로커, 팀 활동을 분석해 AI가 회고 초안을 만들어드려요
             </div>
             <button onClick={handleGenerateAI} style={{
               padding: '0 24px', height: 40, borderRadius: 10, border: 'none',
               background: '#2563EB', color: '#fff', fontSize: 14, fontWeight: 600, cursor: 'pointer',
             }}>
-              AI 회고 생성하기
+              AI 회고 초안 만들기
             </button>
           </div>
         )}
 
+        {/* PM 전용 — 팀 참여 현황 배너 */}
+        {isPM && (() => {
+          const totalMembers = members.length
+          const participatingMembers = new Set(
+            SECTIONS.flatMap(s => entries[s.key].map(e => e.author))
+          ).size
+          const fullyDone = members.filter(m =>
+            SECTIONS.every(s => entries[s.key].some(e => e.author === m.name))
+          ).length
+          if (totalMembers === 0) return null
+          return (
+            <div style={{ padding: '14px 18px', borderRadius: 14, background: '#F5F3FF', border: '1px solid #DDD6FE', display: 'flex', gap: 12, alignItems: 'center', justifyContent: 'space-between' }}>
+              <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
+                <span style={{ fontSize: 18 }}>👥</span>
+                <p style={{ fontSize: 13, color: '#6D28D9' }}>
+                  <strong>팀원 {totalMembers}명 중 {participatingMembers}명</strong>이 참여 중 · 전체 완료 <strong>{fullyDone}명</strong>
+                </p>
+              </div>
+              {participatingMembers >= totalMembers && (
+                <span style={{ fontSize: 11, fontWeight: 700, padding: '3px 10px', borderRadius: 9999, background: '#8B5CF6', color: '#fff', flexShrink: 0 }}>
+                  AI 회고 생성 추천 ✨
+                </span>
+              )}
+            </div>
+          )
+        })()}
+
+        {/* 팀원 안내 배너 — 로그인한 팀원에게만 */}
+        {currentUser && !isPM && (() => {
+          const myEntries = SECTIONS.filter(s => entries[s.key].some(e => e.author === currentUser.name))
+          const remaining = SECTIONS.length - myEntries.length
+          if (remaining === 0) return (
+            <div style={{ padding: '14px 18px', borderRadius: 14, background: '#F0FDF9', border: '1px solid #A7F3D0', display: 'flex', gap: 12, alignItems: 'center' }}>
+              <span style={{ fontSize: 18 }}>✅</span>
+              <p style={{ fontSize: 13, fontWeight: 600, color: '#059669' }}>4개 섹션 모두 작성 완료했어요! PM이 AI 회고를 생성하면 여기서 결과를 볼 수 있어요.</p>
+            </div>
+          )
+          return (
+            <div style={{ padding: '14px 18px', borderRadius: 14, background: '#EFF6FF', border: '1px solid #BFDBFE', display: 'flex', gap: 12, alignItems: 'center' }}>
+              <span style={{ fontSize: 18 }}>✏️</span>
+              <p style={{ fontSize: 13, color: '#1D4ED8' }}>
+                <strong>{currentUser.name}님</strong>, 아직 {remaining}개 섹션에 의견이 없어요. 각 섹션 아래 입력창에 작성해주세요.
+              </p>
+            </div>
+          )
+        })()}
+
         {/* 4L 팀원 의견 */}
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
-          {SECTIONS.map(({ key, label, desc, color, bg, border }) => (
-            <div key={key} style={{ ...card, overflow: 'hidden' }}>
-              <div style={{
-                padding: '14px 18px', borderBottom: '1px solid #F3F4F6',
-                borderLeft: `4px solid ${color}`,
-                display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+          {SECTIONS.map(({ key, label, desc, color, bg, border }) => {
+            const myEntry = currentUser ? entries[key].find(e => e.author === currentUser.name) : null
+            const needsInput = currentUser && !isPM && !myEntry
+
+            return (
+              <div key={key} style={{
+                ...card, overflow: 'hidden',
+                outline: needsInput ? `2px solid ${color}` : 'none',
+                outlineOffset: 2,
               }}>
-                <div>
-                  <div style={{ fontSize: 15, fontWeight: 700, color: '#111827' }}>{label}</div>
-                  <div style={{ fontSize: 12, color: '#6B7280', marginTop: 2 }}>{desc}</div>
+                <div style={{
+                  padding: '14px 18px', borderBottom: '1px solid #F3F4F6',
+                  borderLeft: `4px solid ${color}`,
+                  display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                }}>
+                  <div>
+                    <div style={{ fontSize: 15, fontWeight: 700, color: '#111827' }}>{label}</div>
+                    <div style={{ fontSize: 12, color: '#6B7280', marginTop: 2 }}>{desc}</div>
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                    {needsInput && (
+                      <span style={{ fontSize: 10, fontWeight: 700, color, background: bg, border: `1px solid ${border}`, padding: '2px 7px', borderRadius: 9999 }}>미작성</span>
+                    )}
+                    {myEntry && !isPM && (
+                      <span style={{ fontSize: 10, fontWeight: 700, color: '#059669', background: '#D1FAE5', border: '1px solid #A7F3D0', padding: '2px 7px', borderRadius: 9999 }}>작성 완료</span>
+                    )}
+                    {/* PM용: 팀원 작성 현황 */}
+                    {isPM && (
+                      <span style={{ fontSize: 11, fontWeight: 600, color: '#6B7280' }}>
+                        {new Set(entries[key].map(e => e.author)).size}명 작성
+                      </span>
+                    )}
+                    <span style={{
+                      fontSize: 12, fontWeight: 700, color,
+                      background: bg, border: `1px solid ${border}`,
+                      padding: '2px 10px', borderRadius: 9999,
+                    }}>{entries[key].length}개</span>
+                  </div>
                 </div>
-                <span style={{
-                  fontSize: 12, fontWeight: 700, color,
-                  background: bg, border: `1px solid ${border}`,
-                  padding: '2px 10px', borderRadius: 9999,
-                }}>{entries[key].length}개</span>
-              </div>
 
-              <div style={{ padding: '14px 18px', display: 'flex', flexDirection: 'column', gap: 10, minHeight: 100 }}>
-                {entries[key].map(e => (
-                  <div key={e.id} style={{ display: 'flex', gap: 10, alignItems: 'flex-start' }}>
-                    <Avatar initials={e.initials} color={e.color} />
-                    <div style={{ flex: 1 }}>
-                      <div style={{ fontSize: 11, color: '#9CA3AF', marginBottom: 3 }}>
-                        {e.author} · {e.role}
+                <div style={{ padding: '14px 18px', display: 'flex', flexDirection: 'column', gap: 10, minHeight: 100 }}>
+                  {entries[key].map(e => (
+                    <div key={e.id} style={{ display: 'flex', gap: 10, alignItems: 'flex-start' }}>
+                      <Avatar initials={e.initials} color={e.color} />
+                      <div style={{ flex: 1 }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 5, marginBottom: 3 }}>
+                          <span style={{ fontSize: 11, color: '#9CA3AF' }}>{e.author} · {e.role}</span>
+                          {e.role === 'PM' && (
+                            <span style={{ fontSize: 9, fontWeight: 700, padding: '1px 5px', borderRadius: 4, background: '#DBEAFE', color: '#1D4ED8', border: '1px solid #BFDBFE', flexShrink: 0 }}>PM</span>
+                          )}
+                        </div>
+                        <div style={{ fontSize: 13, color: '#374151', lineHeight: 1.5 }}>{e.text}</div>
                       </div>
-                      <div style={{ fontSize: 13, color: '#374151', lineHeight: 1.5 }}>{e.text}</div>
                     </div>
-                  </div>
-                ))}
+                  ))}
 
-                {currentUser ? (
-                  <div style={{ display: 'flex', gap: 8, alignItems: 'flex-end', marginTop: 4 }}>
-                    <Avatar initials={currentUser.initials} color={currentUser.color} />
-                    <div style={{ flex: 1, display: 'flex', gap: 6 }}>
-                      <input
-                        value={inputs[key]}
-                        onChange={e => setInputs(prev => ({ ...prev, [key]: e.target.value }))}
-                        onKeyDown={e => e.key === 'Enter' && handleAdd(key)}
-                        placeholder="의견을 남겨보세요..."
-                        style={{
-                          flex: 1, fontSize: 13, padding: '8px 12px',
-                          borderRadius: 10, border: '1px solid #E8EAED',
-                          outline: 'none', color: '#111827',
-                        }}
-                      />
-                      <button onClick={() => handleAdd(key)} style={{
-                        padding: '0 14px', height: 36, borderRadius: 10, border: 'none',
-                        background: saved === key ? '#10B981' : color,
-                        color: '#fff', fontSize: 13, fontWeight: 600, cursor: 'pointer',
-                        flexShrink: 0, transition: 'background 0.2s',
-                      }}>
-                        {saved === key ? '✓' : '추가'}
-                      </button>
+                  {currentUser ? (
+                    <div style={{ display: 'flex', gap: 8, alignItems: 'flex-end', marginTop: 4 }}>
+                      <Avatar initials={currentUser.initials} color={currentUser.color} />
+                      <div style={{ flex: 1, display: 'flex', gap: 6 }}>
+                        <input
+                          value={inputs[key]}
+                          onChange={e => setInputs(prev => ({ ...prev, [key]: e.target.value }))}
+                          onKeyDown={e => e.key === 'Enter' && handleAdd(key)}
+                          placeholder={needsInput ? '의견을 남겨주세요 (Enter로 등록)' : '추가 의견이 있으면 남겨보세요...'}
+                          style={{
+                            flex: 1, fontSize: 13, padding: '8px 12px',
+                            borderRadius: 10, border: `1px solid ${needsInput ? color : '#E8EAED'}`,
+                            outline: 'none', color: '#111827',
+                            background: needsInput ? bg : '#FFFFFF',
+                          }}
+                        />
+                        <button onClick={() => handleAdd(key)} style={{
+                          padding: '0 14px', height: 36, borderRadius: 10, border: 'none',
+                          background: saved === key ? '#10B981' : color,
+                          color: '#fff', fontSize: 13, fontWeight: 600, cursor: 'pointer',
+                          flexShrink: 0, transition: 'background 0.2s',
+                        }}>
+                          {saved === key ? '✓' : '등록'}
+                        </button>
+                      </div>
                     </div>
-                  </div>
-                ) : (
-                  <div style={{ fontSize: 12, color: '#9CA3AF', marginTop: 4 }}>
-                    팀원 선택 후 의견을 남길 수 있어요
-                  </div>
-                )}
+                  ) : (
+                    <div style={{ fontSize: 12, color: '#9CA3AF', marginTop: 4 }}>
+                      왼쪽 메뉴에서 팀원을 선택하면 의견을 남길 수 있어요
+                    </div>
+                  )}
+                </div>
               </div>
-            </div>
-          ))}
+            )
+          })}
         </div>
 
         {/* 새 스프린트 시작 — PM만 */}

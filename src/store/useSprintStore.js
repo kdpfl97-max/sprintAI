@@ -8,20 +8,20 @@ const DEFAULT_SPRINT = {
   startDate: '2026.07.01',
   endDate: '2026.06.24', // ponytail: 오늘 날짜로 설정해 종료 배너 즉시 확인 가능
   tasks: [
-    { id: 't1', title: '구글 소셜 로그인',       priority: 'Must',   points: 5,  status: 'done',       member: { name: '박준혁', color: '#2E75B6', initials: '박' }, progress: 100 },
-    { id: 't2', title: '팀 생성 API',            priority: 'Must',   points: 5,  status: 'done',       member: { name: '박준혁', color: '#2E75B6', initials: '박' }, progress: 100 },
-    { id: 't3', title: '팀 초대 이메일 발송',     priority: 'Must',   points: 3,  status: 'done',       member: { name: '박준혁', color: '#2E75B6', initials: '박' }, progress: 100 },
-    { id: 't4', title: 'DB 스키마 설계',          priority: 'Must',   points: 3,  status: 'done',       member: { name: '이민수', color: '#8B5CF6', initials: '이' }, progress: 100 },
-    { id: 't5', title: '카카오 로그인 연동',       priority: 'Must',   points: 3,  status: 'done',       member: { name: '박준혁', color: '#2E75B6', initials: '박' }, progress: 100 },
-    { id: 't6', title: '백로그 CRUD — API 개발', priority: 'Must',   points: 5,  status: 'inprogress', member: { name: '박준혁', color: '#2E75B6', initials: '박' }, progress: 70  },
-    { id: 't7', title: '백로그 CRUD — 프론트 UI',priority: 'Must',   points: 3,  status: 'inprogress', member: { name: '김서연', color: '#22C55E', initials: '김' }, progress: 50  },
-    { id: 't8', title: '스프린트 화면 디자인 시안',priority: 'Must',   points: 3,  status: 'inprogress', member: { name: '최지은', color: '#F59E0B', initials: '최' }, progress: 80  },
-    { id: 't9', title: 'Capacity 입력 화면 구현', priority: 'Must',   points: 5,  status: 'todo',       member: { name: '김서연', color: '#22C55E', initials: '김' }, progress: 0   },
-    { id:'t10', title: 'AI 스프린트 빌더 알고리즘',priority: 'Must',  points: 13, status: 'todo',       member: { name: '이민수', color: '#8B5CF6', initials: '이' }, progress: 0   },
-    { id:'t11', title: 'AI 스프린트 빌더 UI 연동',priority: 'Must',   points: 5,  status: 'todo',       member: { name: '김서연', color: '#22C55E', initials: '김' }, progress: 0   },
-    { id:'t12', title: '랜딩 페이지 디자인',      priority: 'Should', points: 5,  status: 'todo',       member: { name: '최지은', color: '#F59E0B', initials: '최' }, progress: 0   },
-    { id:'t13', title: 'AI 태스크 분해 API 연동', priority: 'Must',   points: 8,  status: 'inprogress', member: { name: '이민수', color: '#8B5CF6', initials: '이' }, progress: 0   },
-    { id:'t14', title: '스프린트 확정 화면 구현',  priority: 'Must',   points: 5,  status: 'inprogress', member: { name: '김서연', color: '#22C55E', initials: '김' }, progress: 0   },
+    { id: 't1',  title: '구글 소셜 로그인',             priority: 'Must',   estimatedHours: 8,  status: 'done',       member: { name: '박준혁', color: '#2E75B6', initials: '박' }, progress: 100, dueDate: null, blocker: null },
+    { id: 't2',  title: '팀 생성 API',                  priority: 'Must',   estimatedHours: 8,  status: 'done',       member: { name: '박준혁', color: '#2E75B6', initials: '박' }, progress: 100, dueDate: null, blocker: null },
+    { id: 't3',  title: '팀 초대 이메일 발송',           priority: 'Must',   estimatedHours: 4,  status: 'done',       member: { name: '박준혁', color: '#2E75B6', initials: '박' }, progress: 100, dueDate: null, blocker: null },
+    { id: 't4',  title: 'DB 스키마 설계',                priority: 'Must',   estimatedHours: 6,  status: 'done',       member: { name: '이민수', color: '#8B5CF6', initials: '이' }, progress: 100, dueDate: null, blocker: null },
+    { id: 't5',  title: '카카오 로그인 연동',             priority: 'Must',   estimatedHours: 4,  status: 'done',       member: { name: '박준혁', color: '#2E75B6', initials: '박' }, progress: 100, dueDate: null, blocker: null },
+    { id: 't6',  title: '전체 할 일 CRUD — API 개발',   priority: 'Must',   estimatedHours: 10, status: 'inprogress', member: { name: '박준혁', color: '#2E75B6', initials: '박' }, progress: 70,  dueDate: '2026-07-05', blocker: null },
+    { id: 't7',  title: '전체 할 일 CRUD — 프론트 UI',  priority: 'Must',   estimatedHours: 6,  status: 'inprogress', member: { name: '김서연', color: '#22C55E', initials: '김' }, progress: 50,  dueDate: '2026-07-05', blocker: 't6' },
+    { id: 't8',  title: '스프린트 화면 디자인 시안',      priority: 'Must',   estimatedHours: 6,  status: 'inprogress', member: { name: '최지은', color: '#F59E0B', initials: '최' }, progress: 80,  dueDate: '2026-07-04', blocker: null },
+    { id: 't9',  title: 'Capacity 입력 화면 구현',       priority: 'Must',   estimatedHours: 8,  status: 'todo',       member: { name: '김서연', color: '#22C55E', initials: '김' }, progress: 0,   dueDate: '2026-07-08', blocker: 't7' },
+    { id: 't10', title: 'AI 계획 초안 알고리즘',          priority: 'Must',   estimatedHours: 20, status: 'todo',       member: { name: '이민수', color: '#8B5CF6', initials: '이' }, progress: 0,   dueDate: '2026-07-10', blocker: null },
+    { id: 't11', title: 'AI 계획 초안 UI 연동',           priority: 'Must',   estimatedHours: 8,  status: 'todo',       member: { name: '김서연', color: '#22C55E', initials: '김' }, progress: 0,   dueDate: '2026-07-12', blocker: 't10' },
+    { id: 't12', title: '랜딩 페이지 디자인',             priority: 'Should', estimatedHours: 8,  status: 'todo',       member: { name: '최지은', color: '#F59E0B', initials: '최' }, progress: 0,   dueDate: null, blocker: null },
+    { id: 't13', title: 'AI 태스크 분해 API 연동',        priority: 'Must',   estimatedHours: 12, status: 'inprogress', member: { name: '이민수', color: '#8B5CF6', initials: '이' }, progress: 0,   dueDate: '2026-07-08', blocker: null },
+    { id: 't14', title: '스프린트 확정 화면 구현',         priority: 'Must',   estimatedHours: 8,  status: 'inprogress', member: { name: '김서연', color: '#22C55E', initials: '김' }, progress: 0,   dueDate: '2026-07-08', blocker: 't9' },
   ],
 }
 
@@ -47,10 +47,12 @@ export function useSprintStore() {
       id: `t${idx + 1}`,
       title: t.title,
       priority: t.priority,
-      points: t.points,
+      estimatedHours: t.estimatedHours || 0,
       status: 'todo',
       member: t.member,
       progress: 0,
+      dueDate: null,
+      blocker: null,
     }))
     const next = {
       ...sprint, name, tasks,
@@ -92,6 +94,14 @@ export function useSprintStore() {
     }))
   }
 
+  /** 태스크 필드 일괄 업데이트 (outputLink 등) */
+  function updateTask(taskId, patch) {
+    setSprint(prev => ({
+      ...prev,
+      tasks: prev.tasks.map(t => t.id === taskId ? { ...t, ...patch } : t),
+    }))
+  }
+
   /** 스프린트 종료: completed 처리 + 미완료 태스크 목록 반환 (백로그 이월은 호출부에서) */
   function closeSprint() {
     const incomplete = sprint.tasks.filter(t => t.status !== 'done')
@@ -99,5 +109,5 @@ export function useSprintStore() {
     return incomplete
   }
 
-  return { sprint, confirmSprint, moveTask, updateProgress, updateNote, closeSprint }
+  return { sprint, confirmSprint, moveTask, updateProgress, updateNote, updateTask, closeSprint }
 }

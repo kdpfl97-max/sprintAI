@@ -3,7 +3,7 @@ name: 쏘카
 design_system_name: SOCAR Frame 2.0
 slug: socar
 category: mobility
-last_updated: "2026-06-02"
+last_updated: "2026-06-28"
 created_at: "2026-05-22"
 ---
 
@@ -92,7 +92,7 @@ caption3:  10px / 16px / 600
 
 /* 규칙 */
 숫자: semibold(600) / 단위라벨: regular(400)
-예: 64 h / 80h → "64" semibold, "h / 80h" regular
+예: 64시간 / 80시간 → "64" semibold, "시간" regular
 ```
 
 ## Spacing (4px 기반)
@@ -221,14 +221,59 @@ Could:  bg #D1FAE5 / text #059669 / border 1px #A7F3D0
 Won't:  bg #F4F5F7 / text #6B7280 / border 1px #E8EAED
 ```
 
+## 태스크 상태 배지 (전체 할 일 — BacklogPage)
+
+```
+미배정: bg #F4F5F7 / text #6B7280 / border 1px #E8EAED
+예정:   bg #DBEAFE / text #1D4ED8 / border 1px #BFDBFE
+진행 중: bg #D1FAE5 / text #059669 / border 1px #A7F3D0
+검토 중: bg #FEF3C7 / text #D97706 / border 1px #FDE68A
+완료:   bg #F4F5F7 / text #6B7280 / border 1px #E8EAED
+블로커:  bg #FEE2E2 / text #DC2626 / border 1px #FECACA
+```
+
+## 난이도 배지 (전체 할 일 / 이번 계획 만들기)
+
+```
+낮음: bg #D1FAE5 / text #059669
+보통: bg #FEF3C7 / text #D97706
+높음: bg #FEE2E2 / text #DC2626
+```
+
+## 칸반 컬럼 (BoardPage)
+
+```
+시작 전  id: 'todo'
+진행 중  id: 'inprogress'
+완료     id: 'done'
+```
+
+블로커 카드: left-border 4px solid #EF4444 + 🔴 배지  
+마감 임박 카드: "마감 임박" badge (bg #FEF3C7 / text #D97706)  
+기한 초과 카드: "기한 초과" badge (bg #FEE2E2 / text #DC2626)
+
+## 확인 알림 배지 (이번 계획 만들기 — AlertBadge)
+
+```
+warning: bg #FEF3C7 / text #D97706 / icon ⚠️
+error:   bg #FEE2E2 / text #DC2626 / icon 🔴
+```
+
+조건:
+- ⚠️ 담당자 미배정
+- ⚠️ 예상 시간 없음
+- ⚠️ 20시간+ 분할 권장
+- 🔴 담당자 과부하
+
 ## Do / Don't (SprintAI 적용 기준)
 
 **Do**
 - 카드 분리는 그림자보다 `1px #E8EAED` 헤어라인 우선
 - 버튼은 `fill/primary → secondary → tertiary` 위계 준수
-- 숫자(SP·시간·%)는 semibold, 단위는 regular
+- 숫자(시간·%)는 semibold, 단위("시간")는 regular
 - 입력 필드는 filled variant(gray-100 배경) 기본
 - 활성 상태는 `#EFF6FF` 배경 + `#2563EB` 텍스트/보더
+- 시간 단위는 항상 "시간" (영문 "h" 금지, 비개발 직군 고려)
 
 **Don't**
 - 그라디언트 배경 금지 (버튼·카드·사이드바 모두)
@@ -236,3 +281,60 @@ Won't:  bg #F4F5F7 / text #6B7280 / border 1px #E8EAED
 - 이모지를 아이콘으로 사용 금지 (텍스트 레이블로 대체)
 - 다크 배경 사이드바 금지 (라이트 모드 전용)
 - 보라색(`#8B5CF6`) 브랜드 accent 금지 (멤버 아바타 전용으로만 허용)
+- 접속 시간·체류 시간·생산성 점수 UI 금지 (프라이버시 원칙)
+- 팀원 순위·성과 비교 표시 금지
+
+## 주요 용어 (SprintAI 공식 표기)
+
+| 이전 표현 | 현재 표현 | 적용 파일 |
+|---|---|---|
+| 백로그 | 전체 할 일 | Sidebar, BacklogPage |
+| AI 스프린트 빌더 | 이번 계획 만들기 | Sidebar, SprintBuilderPage |
+| AI 분석 / AI 분석 실행 | AI 계획 초안 만들기 | SprintBuilderPage |
+| AI 인사이트 | 확인이 필요한 항목 | SprintBuilderPage, DashboardPage |
+| 작업량 / SP | 예상 시간 + 난이도 | 전체 |
+| Capacity | 가용 시간 | SprintBuilderPage, TeamPage |
+| h (단위) | 시간 | 전체 |
+| 태스크 없음 | 업무 없음 | BoardPage |
+| 추가 (버튼) | 등록 | RetroPage |
+
+## 주요 데이터 필드 (2026-06-28 기준)
+
+### 전체 할 일 (Backlog) 아이템
+
+```js
+{
+  id, title, priority,          // 기존 유지
+  estimatedHours: number,       // 예상 시간 (hours, 구 points/작업량)
+  difficulty: '낮음'|'보통'|'높음', // 난이도 (신규)
+  status: '미배정'|'예정'|'진행 중'|'검토 중'|'완료'|'블로커', // 신규
+  assignee: string|null,        // 담당자 (신규)
+  dueDate: string|null,         // 마감일 YYYY-MM-DD (신규)
+  doneCondition: string,        // 완료 조건 (신규)
+  outputLink: string,           // 산출물 링크 (신규)
+  blockedBy: string[],          // 선행 업무 id 배열 (신규)
+  lastUpdatedAt: string|null,   // 마지막 업데이트 ISO 시각 (신규)
+  category, reason,             // 기존 유지
+}
+```
+
+### 스프린트 태스크 (Sprint Task)
+
+```js
+{
+  id, title, assignee, week,    // 기존 유지
+  estimatedHours: number,       // 예상 시간 (구 points)
+  status: 'todo'|'inprogress'|'done', // 칸반 상태
+  dueDate: string|null,         // 마감일 (신규)
+  blocker: string|null,         // 선행 태스크 id (신규)
+  progress: number,             // 진행률 0-100 (신규)
+  note: string,                 // 메모 (신규)
+  outputLink: string,           // 산출물 링크 (신규)
+}
+```
+
+### localStorage 키
+
+```
+'sprintai_backlog_v2'   // BacklogStore (구 v1에서 변경)
+```
