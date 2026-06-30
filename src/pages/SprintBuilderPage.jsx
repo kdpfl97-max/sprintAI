@@ -1,10 +1,13 @@
-import { useState, useRef } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import Topbar from '../components/layout/Topbar'
 import { useBacklogStore } from '../store/useBacklogStore'
 import { useSprintStore } from '../store/useSprintStore'
 import { useAuthStore } from '../store/useAuthStore'
+import { useTeamStore } from '../store/useTeamStore'
+import { useSprintPlanStore } from '../store/useSprintPlanStore'
 import { callClaude } from '../utils/claude'
+import TaskDetailModal from '../components/TaskDetailModal'
 
 const PRIORITY_STYLE = {
   Must:    { bg: '#FEE2E2', color: '#DC2626', border: '#FECACA' },
@@ -13,14 +16,18 @@ const PRIORITY_STYLE = {
   "Won't": { bg: '#F4F5F7', color: '#6B7280', border: '#E8EAED' },
 }
 
-const MEMBERS = [
-  { id: 'a', name: '박준혁', role: '백엔드',    color: '#2563EB', initials: '박', hours: 64, total: 80 },
-  { id: 'b', name: '김서연', role: '프론트',    color: '#10B981', initials: '김', hours: 60, total: 80 },
-  { id: 'c', name: '이민수', role: 'AI/백엔드', color: '#7C3AED', initials: '이', hours: 48, total: 80 },
-  { id: 'd', name: '최지은', role: '디자인',    color: '#D97706', initials: '최', hours: 40, total: 80 },
-]
 
 const FOCUS_CHIPS = ['AI 기능', '사용자 피드백', '성능', '기술부채', '신규 기능', '버그 수정', '리팩토링']
+
+function countDays(start, end, weekdayOnly) {
+  if (!start || !end) return 0
+  if (!weekdayOnly) return Math.max(0, Math.round((new Date(end) - new Date(start)) / 864e5) + 1)
+  let count = 0
+  const d = new Date(start)
+  const e = new Date(end)
+  while (d <= e) { const day = d.getDay(); if (day !== 0 && day !== 6) count++; d.setDate(d.getDate() + 1) }
+  return count
+}
 
 const TASK_META = {
   '소셜 로그인 (구글)':    { reason: '모든 기능의 진입 전제 — 인증 없이 팀·백로그 모두 불가',      week: 1, memberId: 'a' },
@@ -36,10 +43,17 @@ const TASK_META = {
   '대시보드':              { reason: 'PM 모니터링 화면 — 데이터 흐름이 완성된 2주차에 배정',     week: 2, memberId: 'd' },
 }
 
-function buildResult(selectedItems, meta) {
+function buildResult(selectedItems, meta, teamMembers, suggestedMap = {}) {
   const tasks = selectedItems.map(item => {
-    const m = TASK_META[item.title] || { reason: '우선순위 고려 배정', week: 2, memberId: 'a' }
-    return { ...item, _id: item.id, week: m.week, reason: m.reason, members: [MEMBERS.find(x => x.id === m.memberId) || MEMBERS[0]] }
+    const m = TASK_META[item.title] || { reason: '직무 분석 기반 자동 배정', week: 2, memberId: null }
+    // 우선순위: 직접 배정된 assignees → suggestedMap 추천 → TASK_META 기본값
+    const directMembers = (item.assignees || []).map(id => teamMembers.find(x => x.id === id)).filter(Boolean)
+    const suggested = suggestedMap[item.id] || []
+    const fallbackMember = m.memberId ? teamMembers.find(x => x.id === m.memberId) : null
+    const members = directMembers.length > 0 ? directMembers
+      : suggested.length > 0 ? [suggested[0]]
+      : fallbackMember ? [fallbackMember] : []
+    return { ...item, _id: item.id, week: m.week, reason: m.reason, members }
   })
   const goalNote = meta?.goal ? `"${meta.goal}" 목표에 맞춰 ` : ''
   return {
@@ -138,7 +152,7 @@ function SprintMetaModal({ onConfirm, onClose }) {
   )
 }
 
-function MemberPicker({ selected, onChange }) {
+function MemberPicker({ selected, onChange, members }) {
   const [pos, setPos] = useState(null)
   const btnRef = useRef(null)
 
@@ -171,7 +185,7 @@ function MemberPicker({ selected, onChange }) {
             background: '#fff', border: '1px solid #E8EAED', borderRadius: 12,
             boxShadow: '0 8px 24px rgba(17,24,39,0.14)', padding: 6, minWidth: 170,
           }}>
-            {MEMBERS.map(m => {
+            {(members || []).map(m => {
               const checked = selected.some(s => s.id === m.id)
               return (
                 <div key={m.id} onClick={() => onChange(checked ? selected.filter(s => s.id !== m.id) : [...selected, m])}
@@ -235,7 +249,7 @@ function AlertBadge({ level, icon, label }) {
   )
 }
 
-function ReviewTaskCard({ task, onUpdate, onDelete, onMoveWeek, allDraftTasks, capacityMap }) {
+function ReviewTaskCard({ task, onUpdate, onDelete, onMoveWeek, allDraftTasks, capacityMap, teamMembers }) {
   const [editing, setEditing] = useState(false)
   const [draft, setDraft] = useState({ title: task.title, estimatedHours: task.estimatedHours, priority: task.priority })
   const [showMovePreview, setShowMovePreview] = useState(false)
@@ -312,7 +326,7 @@ function ReviewTaskCard({ task, onUpdate, onDelete, onMoveWeek, allDraftTasks, c
           )}
 
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', position: 'relative' }}>
-            <MemberPicker selected={task.members} onChange={members => onUpdate({ ...task, members })} />
+            <MemberPicker selected={task.members} onChange={m => onUpdate({ ...task, members: m })} members={teamMembers} />
             <div style={{ display: 'flex', gap: 4 }}>
               {/* 이동 버튼 + 미리보기 */}
               <div style={{ position: 'relative' }}>
@@ -373,47 +387,284 @@ function ReviewTaskCard({ task, onUpdate, onDelete, onMoveWeek, allDraftTasks, c
   )
 }
 
+const PRIORITY_OPTIONS = ['Must', 'Should', 'Could', "Won't"]
+
+function PlanTaskCard({ item, recommended, members, onRemove, onSave, onDetail, onAccept, onDismiss, onToggleAssignee }) {
+  const [editing, setEditing] = useState(false)
+  const [draft, setDraft] = useState({ title: item.title, estimatedHours: item.estimatedHours, priority: item.priority })
+  const [pickerOpen, setPickerOpen] = useState(false)
+  const pickerRef = useRef(null)
+  const ps = PRIORITY_STYLE_BUILDER[item.priority] || PRIORITY_STYLE_BUILDER["Won't"]
+  const assignedMembers = (item.assignees || []).map(id => members.find(m => m.id === id)).filter(Boolean)
+
+  const isUrgent = (() => {
+    if (!item.dueDate) return false
+    const today = new Date(); today.setHours(0,0,0,0)
+    const diff = Math.ceil((new Date(item.dueDate) - today) / 864e5)
+    return diff >= 0 && diff <= 7
+  })()
+
+  function save() {
+    onSave({ title: draft.title, estimatedHours: Number(draft.estimatedHours), priority: draft.priority })
+    setEditing(false)
+  }
+
+  const borderColor = recommended.length > 0 ? '#DDD6FE' : isUrgent ? '#FCA5A5' : '#E8EAED'
+  const bgColor     = isUrgent ? '#FFF5F5' : recommended.length > 0 ? '#FAFAFF' : '#FAFAFA'
+
+  if (editing) {
+    return (
+      <div style={{ padding: '12px 14px', borderRadius: 12, border: '1px solid #BFDBFE', background: '#EFF6FF', display: 'flex', flexDirection: 'column', gap: 10 }}>
+        <input autoFocus value={draft.title} onChange={e => setDraft(p => ({ ...p, title: e.target.value }))}
+          style={{ ...inputStyle, fontSize: 13, fontWeight: 600 }} placeholder="태스크 제목" />
+        <div style={{ display: 'flex', gap: 8 }}>
+          <div style={{ flex: 1 }}>
+            <label style={{ fontSize: 11, color: '#6B7280', display: 'block', marginBottom: 4 }}>예상 시간 (h)</label>
+            <input type="number" min="0" max="200" step="1" value={draft.estimatedHours}
+              onChange={e => setDraft(p => ({ ...p, estimatedHours: e.target.value }))} style={{ ...inputStyle, fontSize: 13 }} />
+          </div>
+          <div style={{ flex: 1 }}>
+            <label style={{ fontSize: 11, color: '#6B7280', display: 'block', marginBottom: 4 }}>우선순위</label>
+            <select value={draft.priority} onChange={e => setDraft(p => ({ ...p, priority: e.target.value }))}
+              style={{ ...inputStyle, fontSize: 13, cursor: 'pointer' }}>
+              {PRIORITY_OPTIONS.map(o => <option key={o}>{o}</option>)}
+            </select>
+          </div>
+        </div>
+        <div style={{ display: 'flex', gap: 6, justifyContent: 'flex-end' }}>
+          <button onClick={() => setEditing(false)} style={{ padding: '5px 12px', fontSize: 12, borderRadius: 8, border: '1px solid #E8EAED', background: '#fff', color: '#6B7280', cursor: 'pointer' }}>취소</button>
+          <button onClick={save} style={{ padding: '5px 12px', fontSize: 12, fontWeight: 600, borderRadius: 8, border: 'none', background: '#2563EB', color: '#fff', cursor: 'pointer' }}>저장</button>
+        </div>
+      </div>
+    )
+  }
+
+  return (
+    <div onClick={onDetail} style={{ padding: '12px 14px', borderRadius: 12, border: `1px solid ${borderColor}`, background: bgColor, cursor: 'pointer' }}>
+      {/* 상단: 제목 + 뱃지 */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+        <span style={{ fontSize: 13, fontWeight: 600, color: '#111827', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.title}</span>
+        <span style={{ fontSize: 10, fontWeight: 700, padding: '1px 6px', borderRadius: 9999, background: ps.bg, color: ps.color, border: `1px solid ${ps.border}`, flexShrink: 0 }}>{item.priority}</span>
+        {isUrgent && <span style={{ fontSize: 10, fontWeight: 700, padding: '1px 6px', borderRadius: 9999, background: '#FEE2E2', color: '#DC2626', border: '1px solid #FECACA', flexShrink: 0 }}>🔥 {Math.ceil((new Date(item.dueDate) - new Date().setHours(0,0,0,0)) / 864e5)}일</span>}
+        <button onClick={e => { e.stopPropagation(); setDraft({ title: item.title, estimatedHours: item.estimatedHours, priority: item.priority }); setEditing(true) }}
+          style={{ padding: '2px 7px', fontSize: 11, borderRadius: 6, border: '1px solid #E8EAED', background: '#fff', color: '#6B7280', cursor: 'pointer', flexShrink: 0 }}>✏️</button>
+        <button onClick={e => { e.stopPropagation(); onRemove() }}
+          style={{ padding: '2px 7px', fontSize: 11, borderRadius: 6, border: '1px solid #FECACA', background: '#FEF2F2', color: '#DC2626', cursor: 'pointer', flexShrink: 0 }}>제거</button>
+      </div>
+
+      {/* 하단: 메타 + 담당자 영역 */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+        {item.estimatedHours > 0 && <span style={{ fontSize: 11, color: '#6B7280', fontWeight: 600 }}>⏱ {item.estimatedHours}시간</span>}
+        {item.difficulty && <span style={{ fontSize: 11, color: '#6B7280' }}>· {item.difficulty}</span>}
+        {item.stage && <span style={{ fontSize: 10, color: '#9CA3AF', background: '#F3F4F6', padding: '1px 6px', borderRadius: 6 }}>{item.stage}</span>}
+
+        <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 6 }} onClick={e => e.stopPropagation()}>
+          {/* 배정된 담당자 */}
+          {assignedMembers.map(m => (
+            <div key={m.id} title={`${m.name} (클릭해서 제거)`}
+              onClick={() => onToggleAssignee(item.id, m.id)}
+              style={{ display: 'flex', alignItems: 'center', gap: 3, padding: '2px 7px 2px 3px', borderRadius: 9999, background: m.color + '22', border: `1px solid ${m.color}55`, cursor: 'pointer' }}>
+              <div style={{ width: 16, height: 16, borderRadius: '50%', background: m.color, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 7, fontWeight: 700, color: '#fff' }}>{m.initials}</div>
+              <span style={{ fontSize: 10, fontWeight: 600, color: m.color }}>{m.name}</span>
+              <span style={{ fontSize: 9, color: m.color, opacity: 0.7 }}>✕</span>
+            </div>
+          ))}
+
+          {/* 추천 담당자 */}
+          {recommended.map(m => (
+            <div key={m.id} style={{ display: 'flex', alignItems: 'center', gap: 3, padding: '2px 4px 2px 3px', borderRadius: 9999, background: '#EDE9FE', border: '1px solid #DDD6FE' }}>
+              <div style={{ width: 14, height: 14, borderRadius: '50%', background: m.color, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 7, fontWeight: 700, color: '#fff' }}>{m.initials}</div>
+              <span style={{ fontSize: 10, fontWeight: 600, color: '#6D28D9' }}>{m.name}</span>
+              <span style={{ fontSize: 9, color: '#6B7280', margin: '0 1px' }}>🤖</span>
+              <button onClick={() => onAccept(item.id, m)}
+                style={{ padding: '0 4px', fontSize: 10, fontWeight: 700, borderRadius: 4, border: 'none', background: '#7C3AED', color: '#fff', cursor: 'pointer', lineHeight: '16px' }}>✓</button>
+              <button onClick={() => onDismiss(item.id, m.id)}
+                style={{ padding: '0 4px', fontSize: 10, borderRadius: 4, border: '1px solid #DDD6FE', background: '#fff', color: '#9CA3AF', cursor: 'pointer', lineHeight: '16px' }}>✕</button>
+            </div>
+          ))}
+
+          {/* 팀원 직접 태그 */}
+          <div ref={pickerRef} style={{ position: 'relative' }}>
+            <button onClick={() => setPickerOpen(p => !p)}
+              style={{ width: 22, height: 22, borderRadius: '50%', border: '1.5px dashed #D1D5DB', background: '#fff', color: '#9CA3AF', fontSize: 14, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', lineHeight: 1 }}>+</button>
+            {pickerOpen && (
+              <>
+                <div style={{ position: 'fixed', inset: 0, zIndex: 98 }} onClick={() => setPickerOpen(false)} />
+                <div style={{ position: 'absolute', right: 0, top: 28, zIndex: 99, background: '#fff', border: '1px solid #E8EAED', borderRadius: 12, boxShadow: '0 8px 24px rgba(17,24,39,0.14)', padding: 6, minWidth: 160 }}>
+                  {members.map(m => {
+                    const checked = (item.assignees || []).includes(m.id)
+                    return (
+                      <div key={m.id} onClick={() => { onToggleAssignee(item.id, m.id); setPickerOpen(false) }}
+                        style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 10px', borderRadius: 8, cursor: 'pointer', background: checked ? '#EFF6FF' : 'transparent' }}>
+                        <div style={{ width: 14, height: 14, borderRadius: 3, border: checked ? 'none' : '1.5px solid #D1D5DB', background: checked ? '#2563EB' : '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                          {checked && <span style={{ color: '#fff', fontSize: 8, fontWeight: 700 }}>✓</span>}
+                        </div>
+                        <div style={{ width: 20, height: 20, borderRadius: '50%', background: m.color, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 8, fontWeight: 700, color: '#fff' }}>{m.initials}</div>
+                        <div>
+                          <div style={{ fontSize: 12, fontWeight: 600, color: '#111827' }}>{m.name}</div>
+                          <div style={{ fontSize: 10, color: '#9CA3AF' }}>{m.role}</div>
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+const PRIORITY_STYLE_BUILDER = {
+  Must:    { bg: '#FEE2E2', color: '#DC2626', border: '#FECACA' },
+  Should:  { bg: '#FEF3C7', color: '#D97706', border: '#FDE68A' },
+  Could:   { bg: '#D1FAE5', color: '#059669', border: '#A7F3D0' },
+  "Won't": { bg: '#F4F5F7', color: '#6B7280', border: '#E8EAED' },
+}
+
+const ROLE_KEYWORDS = {
+  백엔드:    /api|서버|db|데이터베이스|인증|로그인|crud|저장|연동|스키마|마이그레이션|백엔드|backend/,
+  프론트:    /ui|화면|페이지|컴포넌트|버튼|레이아웃|뷰|렌더|표시|모달|폼|프론트|frontend/,
+  'AI/백엔드': /ai|알고리즘|추천|분석|모델|자동|예측|계획|초안|분해/,
+  디자인:    /디자인|아이콘|스타일|색상|대시보드|ux|ui 디자인/,
+}
+
+// 이미 배정된 멤버는 추천에서 제외
+function suggestMembers(title, teamMembers, existingAssignees = []) {
+  const t = title.toLowerCase()
+  const eligible = teamMembers.filter(m => m.role !== 'PM' && !existingAssignees.includes(m.id))
+  if (eligible.length === 0) return []
+  const scores = eligible.map(m => {
+    let score = 0
+    Object.entries(ROLE_KEYWORDS).forEach(([roleKey, regex]) => {
+      if (m.role.includes(roleKey) && regex.test(t)) score += 3
+    })
+    return { ...m, score }
+  })
+  const max = Math.max(...scores.map(s => s.score))
+  if (max <= 0) return [eligible[0]]
+  return scores.filter(s => s.score === max)
+}
+
 export default function SprintBuilderPage() {
   const navigate = useNavigate()
-  const { items } = useBacklogStore()
+  const { items, update: updateBacklog } = useBacklogStore()
   const { confirmSprint } = useSprintStore()
   const { can } = useAuthStore()
+  const { members } = useTeamStore()
+  const { selected, toggle: planToggle, remove: removePlan, clear: clearPlan } = useSprintPlanStore()
 
-  const [selected, setSelected] = useState(
-    () => new Set(items.filter(i => i.priority === 'Must' && i.stage === 'MVP').map(i => i.id))
-  )
+  // 마감일 7일 이내 아이템 자동 추가 (완료/블로커 제외)
+  useEffect(() => {
+    const today = new Date(); today.setHours(0, 0, 0, 0)
+    const in7 = new Date(today); in7.setDate(today.getDate() + 7)
+    items.forEach(item => {
+      if (!item.dueDate) return
+      if (item.status === '완료' || item.status === '블로커') return
+      const due = new Date(item.dueDate)
+      if (due <= in7 && !selected.has(item.id)) planToggle(item.id)
+    })
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
-  const [capacity,   setCapacity]   = useState(() => Object.fromEntries(MEMBERS.map(m => [m.id, m.hours])))
+  // useTeamStore 멤버를 capacity 계산에 필요한 필드로 매핑
+  const teamMembers = members.map(m => ({
+    ...m,
+    initials: m.initials || m.name.slice(0, 1),
+    hours: m.capacity || 80,
+    total: m.capacity || 80,
+  }))
+
+  const today = new Date().toISOString().slice(0, 10)
+  const twoWeeks = new Date(Date.now() + 14 * 864e5).toISOString().slice(0, 10)
+
+  const [meta, setMeta] = useState({ name: 'Sprint 2', startDate: today, endDate: twoWeeks, goal: '', focus: [] })
+  const [weekdayOnly, setWeekdayOnly] = useState(true)
+  const [capacity,   setCapacity]   = useState(() => Object.fromEntries(members.map(m => [m.id, m.capacity || 80])))
   const [result,     setResult]     = useState(null)
   const [draft,      setDraft]      = useState(null)
-  const [phase,      setPhase]      = useState('setup')   // 'setup' | 'reviewing'
-  const [loading,    setLoading]    = useState(false)
-  const [search,     setSearch]     = useState('')
-  const [showModal,  setShowModal]  = useState(false)
-  const [sprintMeta, setSprintMeta] = useState(null)
+  const [phase,      setPhase]      = useState('setup')
+  const [loading,      setLoading]      = useState(false)
+  const [sprintMeta,   setSprintMeta]   = useState(null)
+  const [suggestedMap, setSuggestedMap] = useState({})
+  const [detailItem,   setDetailItem]   = useState(null)
+
+  // 날짜·토글 변경 시 Capacity 자동 재계산 (1인당 하루 8시간 기준)
+  useEffect(() => {
+    const days = countDays(meta.startDate, meta.endDate, weekdayOnly)
+    const hoursPerPerson = days * 8
+    setCapacity(Object.fromEntries(members.map(m => [m.id, hoursPerPerson])))
+  }, [meta.startDate, meta.endDate, weekdayOnly])
   const resultRef = useRef(null)
+
+  function autoSuggestAll() {
+    const map = {}
+    selectedItems.forEach(item => {
+      const suggested = suggestMembers(item.title, teamMembers, item.assignees || [])
+      if (suggested.length > 0) map[item.id] = suggested
+    })
+    setSuggestedMap(map)
+  }
+
+  function acceptSuggestion(itemId, member) {
+    const item = items.find(i => i.id === itemId)
+    if (!item) return
+    updateBacklog(itemId, { assignees: [...(item.assignees || []), member.id] })
+    setSuggestedMap(prev => {
+      const next = { ...prev }
+      const filtered = (next[itemId] || []).filter(m => m.id !== member.id)
+      if (filtered.length === 0) delete next[itemId]
+      else next[itemId] = filtered
+      return next
+    })
+  }
+
+  function dismissSuggestion(itemId, memberId) {
+    setSuggestedMap(prev => {
+      const next = { ...prev }
+      const filtered = (next[itemId] || []).filter(m => m.id !== memberId)
+      if (filtered.length === 0) delete next[itemId]
+      else next[itemId] = filtered
+      return next
+    })
+  }
+
+  function toggleAssignee(itemId, memberId) {
+    const item = items.find(i => i.id === itemId)
+    if (!item) return
+    const assignees = item.assignees || []
+    const next = assignees.includes(memberId)
+      ? assignees.filter(id => id !== memberId)
+      : [...assignees, memberId]
+    updateBacklog(itemId, { assignees: next })
+    // 담당자로 확정되면 추천에서도 제거
+    if (!assignees.includes(memberId)) {
+      setSuggestedMap(prev => {
+        const filtered = (prev[itemId] || []).filter(m => m.id !== memberId)
+        if (filtered.length === 0) { const n = { ...prev }; delete n[itemId]; return n }
+        return { ...prev, [itemId]: filtered }
+      })
+    }
+  }
 
   const selectedItems = items.filter(i => selected.has(i.id))
   const selectedSP    = selectedItems.reduce((s, i) => s + Number(i.estimatedHours || 0), 0)
-  const filtered      = items.filter(i => i.title.includes(search) || i.desc?.includes(search))
-
-  function toggleItem(id) {
-    setSelected(prev => { const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n })
-  }
+  const days = Math.max(0, Math.round((new Date(meta.endDate) - new Date(meta.startDate)) / 864e5) + 1)
 
   function handleReset() {
-    setResult(null); setDraft(null); setPhase('setup'); setSprintMeta(null)
-    setSelected(new Set(items.filter(i => i.priority === 'Must' && i.stage === 'MVP').map(i => i.id)))
+    setResult(null); setDraft(null); setPhase('setup'); setSprintMeta(null); clearPlan()
   }
 
-  async function handleGenerate(meta) {
-    setShowModal(false)
+  async function handleGenerate() {
+    if (!meta.name.trim() || selected.size === 0 || !can.runAI) return
     setSprintMeta(meta)
     setLoading(true)
     try {
       await callClaude('mock', 'mock')
     } catch {
-      const r = buildResult(selectedItems, meta)
+      const r = buildResult(selectedItems, meta, teamMembers, suggestedMap)
       setResult(r)
       setDraft({ week1: r.week1.map(t => ({ ...t })), week2: r.week2.map(t => ({ ...t })) })
       setPhase('reviewing')
@@ -443,146 +694,171 @@ export default function SprintBuilderPage() {
     }))
   }
 
+  function handleConfirm() {
+    if (!can.confirmSprint || !draft) return
+    const allTasks = [...draft.week1, ...draft.week2].map(t => ({ ...t, member: t.members?.[0] || teamMembers[0] }))
+    confirmSprint(sprintMeta?.name || 'Sprint 2', allTasks, sprintMeta || {})
+    navigate('/sprint/1/board')
+  }
+
   const allDraftTasks = draft ? [...draft.week1, ...draft.week2] : []
-  const workload = MEMBERS.map(m => ({
+  const workload = teamMembers.map(m => ({
     ...m,
     sp: allDraftTasks.filter(t => t.members?.some(mb => mb.id === m.id)).reduce((s, t) => s + (Number(t.estimatedHours) || 0), 0),
   }))
   const maxSP = Math.max(...workload.map(w => w.sp), 1)
 
-  function handleConfirm() {
-    if (!can.confirmSprint || !draft) return
-    const allTasks = [...draft.week1, ...draft.week2].map(t => ({ ...t, member: t.members?.[0] || MEMBERS[0] }))
-    confirmSprint(sprintMeta?.name || 'Sprint 1 — 핵심 AI 기능', allTasks, sprintMeta || {})
-    navigate('/sprint/1/board')
-  }
+  const canGenerate = can.runAI && selected.size > 0 && meta.name.trim()
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', flex: 1, overflow: 'hidden' }}>
-      {showModal && <SprintMetaModal onConfirm={handleGenerate} onClose={() => setShowModal(false)} />}
-
-      <Topbar title="이번 계획 만들기" subtitle={phase === 'reviewing' ? `${sprintMeta?.name || ''} — AI 초안 검토 & 조정` : '할 일을 선택하면 AI가 계획 초안을 만들어요'}>
+      <Topbar
+        title="이번 계획 만들기"
+        subtitle={phase === 'reviewing' ? `${sprintMeta?.name || ''} — AI 초안 검토 & 조정` : `${selected.size}개 태스크 · ${selectedSP}시간`}>
         {phase === 'reviewing' && <button onClick={() => setPhase('setup')} style={btnTertiary}>← 다시 설정</button>}
         {can.deleteSprint && <button onClick={handleReset} style={btnTertiary}>초기화</button>}
-        {phase === 'setup' && (
-          <button onClick={() => setShowModal(true)} disabled={loading || selected.size === 0 || !can.runAI}
-            style={{ ...btnPrimary, opacity: (loading || selected.size === 0 || !can.runAI) ? 0.4 : 1 }}>
-            {!can.runAI && '🔒 '}{loading ? '초안 만드는 중...' : 'AI 계획 초안 만들기'}
-          </button>
-        )}
-        {phase === 'reviewing' && (
-          <button onClick={handleConfirm} disabled={!can.confirmSprint}
-            style={{ ...btnSecondary, opacity: can.confirmSprint ? 1 : 0.4 }}>
-            {!can.confirmSprint && '🔒 '}스프린트 확정
-          </button>
-        )}
       </Topbar>
 
-      <div style={{ display: 'flex', flex: 1, overflow: 'hidden', minHeight: 0 }}>
+      <div style={{ flex: 1, overflowY: 'auto', background: '#F4F5F7', padding: '20px 24px 100px', display: 'flex', flexDirection: 'column', gap: 16 }}>
 
-        {/* 왼쪽: 백로그 */}
-        <aside style={{ width: 300, minWidth: 300, display: 'flex', flexDirection: 'column', background: '#FFFFFF', borderRight: '1px solid #E8EAED' }}>
-          <div style={{ padding: '16px 16px 12px', borderBottom: '1px solid #E8EAED' }}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
-              <span style={{ fontSize: 15, fontWeight: 600, color: '#111827' }}>백로그</span>
-              <span style={{ fontSize: 12, fontWeight: 600, color: '#2563EB', background: '#EFF6FF', border: '1px solid #BFDBFE', padding: '3px 10px', borderRadius: 9999 }}>{selected.size}개 · {selectedSP}시간</span>
-            </div>
-            <input style={{ width: '100%', padding: '9px 12px', border: '1px solid #E8EAED', borderRadius: 14, background: '#F4F5F7', fontSize: 13, color: '#1F2937', outline: 'none', boxSizing: 'border-box' }}
-              placeholder="태스크 검색..." value={search} onChange={e => setSearch(e.target.value)} />
-          </div>
+        {/* ── SETUP 단계 ── */}
+        {phase === 'setup' && (<>
 
-          <div style={{ flex: 1, overflowY: 'auto', padding: 10, display: 'flex', flexDirection: 'column', gap: 6 }}>
-            {filtered.map(item => {
-              const on = selected.has(item.id)
-              const ps = PRIORITY_STYLE[item.priority] || PRIORITY_STYLE["Won't"]
-              return (
-                <div key={item.id} onClick={() => toggleItem(item.id)} style={{ padding: '11px 14px', borderRadius: 12, cursor: 'pointer', border: `1px solid ${on ? '#BFDBFE' : '#E8EAED'}`, background: on ? '#EFF6FF' : '#FFFFFF' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
-                    <div style={{ width: 16, height: 16, borderRadius: 4, flexShrink: 0, border: on ? 'none' : '1.5px solid #D1D5DB', background: on ? '#2563EB' : 'white', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                      {on && <span style={{ color: 'white', fontSize: 9, fontWeight: 700 }}>✓</span>}
-                    </div>
-                    <span style={{ fontSize: 13, fontWeight: 600, color: '#111827', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.title}</span>
-                    <span style={{ fontSize: 11, fontWeight: 600, padding: '1px 7px', borderRadius: 9999, background: ps.bg, color: ps.color, border: `1px solid ${ps.border}` }}>{item.priority}</span>
-                  </div>
-                  <div style={{ display: 'flex', alignItems: 'center', paddingLeft: 24, gap: 8 }}>
-                    <span style={{ fontSize: 12, color: '#6B7280', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.desc}</span>
-                    <span style={{ fontSize: 11, color: '#9CA3AF', fontWeight: 600 }}>{item.estimatedHours}시간</span>
-                  </div>
+          {/* 1단계: 스프린트 기본 정보 (인라인) */}
+          <div style={{ ...card, padding: 20 }}>
+            <p style={{ fontSize: 14, fontWeight: 700, color: '#111827', marginBottom: 16 }}>① 스프린트 기본 정보</p>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+              <div>
+                <label style={{ fontSize: 12, fontWeight: 600, color: '#374151', display: 'block', marginBottom: 6 }}>스프린트 이름 *</label>
+                <input style={inputStyle} value={meta.name} onChange={e => setMeta(p => ({ ...p, name: e.target.value }))} placeholder="예: Sprint 2 — 결제 기능" />
+              </div>
+              <div>
+                <label style={{ fontSize: 12, fontWeight: 600, color: '#374151', display: 'block', marginBottom: 6 }}>
+                  기간{days > 0 && <span style={{ fontWeight: 400, color: '#9CA3AF', marginLeft: 6 }}>{days}일</span>}
+                </label>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <input type="date" style={{ ...inputStyle, flex: 1 }} value={meta.startDate} onChange={e => setMeta(p => ({ ...p, startDate: e.target.value }))} />
+                  <span style={{ color: '#9CA3AF', flexShrink: 0 }}>→</span>
+                  <input type="date" style={{ ...inputStyle, flex: 1 }} value={meta.endDate} onChange={e => setMeta(p => ({ ...p, endDate: e.target.value }))} />
                 </div>
-              )
-            })}
-          </div>
-
-          <div style={{ padding: '14px 16px', borderTop: '1px solid #E8EAED', background: '#F4F5F7' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, marginBottom: 4 }}>
-              <span style={{ color: '#6B7280' }}>선택된 태스크</span>
-              <span style={{ fontWeight: 600, color: '#111827' }}>{selected.size}개</span>
-            </div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13 }}>
-              <span style={{ color: '#6B7280' }}>총 예상 시간</span>
-              <span style={{ fontWeight: 600, color: '#2563EB' }}>{selectedSP}시간</span>
-            </div>
-          </div>
-        </aside>
-
-        {/* 오른쪽 */}
-        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflowY: 'auto', background: '#F4F5F7', padding: '20px 24px', gap: 16, minWidth: 0 }}>
-
-          {/* Capacity */}
-          {phase === 'setup' && (
-            <div style={{ ...card, padding: 20, flexShrink: 0 }}>
-              <p style={{ fontSize: 14, fontWeight: 700, color: '#111827', marginBottom: 16 }}>팀 Capacity 설정</p>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12 }}>
-                {MEMBERS.map(m => {
-                  const h = capacity[m.id]
-                  const pct = Math.round((h / m.total) * 100)
-                  return (
-                    <div key={m.id} style={{ border: '1px solid #E8EAED', borderRadius: 14, padding: '14px 14px 12px' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14 }}>
-                        <div style={{ width: 36, height: 36, borderRadius: '50%', background: m.color, color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, fontWeight: 700 }}>{m.initials}</div>
-                        <div>
-                          <p style={{ fontSize: 13, fontWeight: 600, color: '#111827' }}>{m.name}</p>
-                          <p style={{ fontSize: 11, color: '#9CA3AF' }}>{m.role}</p>
-                        </div>
-                      </div>
-                      <div style={{ height: 6, background: '#E8EAED', borderRadius: 3, overflow: 'hidden', marginBottom: 8 }}>
-                        <div style={{ height: '100%', borderRadius: 3, background: m.color, width: `${pct}%` }} />
-                      </div>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, marginBottom: 8 }}>
-                        <span style={{ color: '#9CA3AF' }}>가용 시간</span>
-                        <span style={{ fontWeight: 600, color: '#4B5563' }}>{h}시간 / {m.total}시간</span>
-                      </div>
-                      <input type="range" min="0" max={m.total} step="4" value={h}
-                        onChange={e => setCapacity(p => ({ ...p, [m.id]: Number(e.target.value) }))}
-                        style={{ width: '100%', accentColor: m.color, cursor: 'pointer' }} />
-                    </div>
-                  )
-                })}
+              </div>
+              <div style={{ gridColumn: '1/-1' }}>
+                <label style={{ fontSize: 12, fontWeight: 600, color: '#374151', display: 'block', marginBottom: 6 }}>스프린트 목표 <span style={{ fontWeight: 400, color: '#9CA3AF' }}>(선택)</span></label>
+                <input style={inputStyle} value={meta.goal} onChange={e => setMeta(p => ({ ...p, goal: e.target.value }))} placeholder="예: 핵심 AI 기능 MVP를 완성해 내부 베타 테스트를 시작한다" />
               </div>
             </div>
-          )}
+          </div>
 
-          {/* 로딩 */}
-          {loading && (
-            <div style={{ ...card, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: 280, gap: 16 }}>
-              <div style={{ display: 'flex', gap: 8 }}>
-                {[0,1,2].map(i => (
-                  <div key={i} style={{ width: 10, height: 10, borderRadius: '50%', background: '#2563EB', animation: `pulse 1.2s ${i*0.2}s infinite` }} />
+          {/* 2단계: 선택된 태스크 목록 */}
+          <div style={{ ...card, padding: 20 }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
+              <p style={{ fontSize: 14, fontWeight: 700, color: '#111827' }}>② 이번 계획 태스크</p>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <span style={{ fontSize: 12, fontWeight: 600, color: '#2563EB', background: '#EFF6FF', border: '1px solid #BFDBFE', padding: '3px 10px', borderRadius: 9999 }}>{selected.size}개 · {selectedSP}시간</span>
+                {selectedItems.length > 0 && (
+                  <button onClick={autoSuggestAll}
+                    style={{ padding: '5px 12px', fontSize: 12, fontWeight: 600, border: '1px solid #DDD6FE', borderRadius: 9999, background: Object.keys(suggestedMap).length > 0 ? '#EDE9FE' : '#fff', color: '#7C3AED', cursor: 'pointer' }}>
+                    🤖 담당자 자동 추천
+                  </button>
+                )}
+                <button onClick={() => navigate('/backlog')}
+                  style={{ padding: '5px 12px', fontSize: 12, fontWeight: 600, border: '1px solid #E8EAED', borderRadius: 9999, background: '#fff', color: '#4B5563', cursor: 'pointer' }}>
+                  + 전체 할일에서 추가
+                </button>
+              </div>
+            </div>
+
+            {selectedItems.length === 0 ? (
+              <div style={{ textAlign: 'center', padding: '40px 0', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10 }}>
+                <div style={{ width: 44, height: 44, borderRadius: 12, background: '#F3F4F6', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 20 }}>📋</div>
+                <p style={{ fontSize: 14, fontWeight: 600, color: '#374151' }}>아직 추가된 태스크가 없어요</p>
+                <p style={{ fontSize: 13, color: '#9CA3AF' }}>전체 할일에서 <strong>+ 계획에 추가</strong> 버튼을 눌러보세요</p>
+                <button onClick={() => navigate('/backlog')}
+                  style={{ marginTop: 4, padding: '9px 20px', borderRadius: 10, border: 'none', background: '#2563EB', color: 'white', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
+                  전체 할일 보러 가기
+                </button>
+              </div>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                {selectedItems.map(item => (
+                  <PlanTaskCard
+                    key={item.id}
+                    item={item}
+                    recommended={suggestedMap[item.id] || []}
+                    members={members}
+                    onRemove={() => removePlan(item.id)}
+                    onSave={patch => updateBacklog(item.id, patch)}
+                    onDetail={() => setDetailItem(item)}
+                    onAccept={acceptSuggestion}
+                    onDismiss={dismissSuggestion}
+                    onToggleAssignee={toggleAssignee}
+                  />
                 ))}
               </div>
-              <p style={{ fontSize: 14, fontWeight: 600, color: '#111827' }}>AI가 스프린트를 설계하고 있어요</p>
-              <style>{`@keyframes pulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:0.25;transform:scale(0.75)}}`}</style>
-            </div>
-          )}
+            )}
+          </div>
 
-          {/* 빈 상태 */}
-          {!loading && phase === 'setup' && (
-            <div ref={resultRef} style={{ ...card, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: 200, gap: 12, textAlign: 'center' }}>
-              <div style={{ width: 48, height: 48, borderRadius: 14, background: '#EFF6FF', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 20 }}>AI</div>
-              <p style={{ fontSize: 15, fontWeight: 600, color: '#111827' }}>태스크를 선택하고 AI 계획 초안을 만들어보세요</p>
-              <p style={{ fontSize: 13, color: '#9CA3AF' }}>스프린트 기본 정보 입력 후 최적 배분을 설계해드려요</p>
+          {/* 3단계: Capacity */}
+          <div style={{ ...card, padding: 20 }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
+              <p style={{ fontSize: 14, fontWeight: 700, color: '#111827' }}>③ 팀 Capacity 설정</p>
+              <div style={{ display: 'flex', gap: 4 }}>
+                {[
+                  { val: true,  label: '평일만', tip: `월~금 기준 · ${countDays(meta.startDate, meta.endDate, true)}일 × 8h = ${countDays(meta.startDate, meta.endDate, true) * 8}시간` },
+                  { val: false, label: '매일',   tip: `주말 포함 · ${countDays(meta.startDate, meta.endDate, false)}일 × 8h = ${countDays(meta.startDate, meta.endDate, false) * 8}시간` },
+                ].map(({ val, label, tip }) => (
+                  <div key={label} style={{ position: 'relative' }} className="tooltip-wrap">
+                    <button
+                      onClick={() => setWeekdayOnly(val)}
+                      title={tip}
+                      style={{ padding: '4px 12px', fontSize: 12, fontWeight: 600, borderRadius: 8, border: `1px solid ${weekdayOnly === val ? '#2563EB' : '#E8EAED'}`, background: weekdayOnly === val ? '#EFF6FF' : '#fff', color: weekdayOnly === val ? '#2563EB' : '#6B7280', cursor: 'pointer' }}>
+                      {label}
+                    </button>
+                  </div>
+                ))}
+              </div>
             </div>
-          )}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12 }}>
+              {teamMembers.map(m => {
+                const maxH = countDays(meta.startDate, meta.endDate, weekdayOnly) * 8 || m.total
+                const h = capacity[m.id] ?? maxH
+                const pct = Math.round((h / maxH) * 100)
+                return (
+                  <div key={m.id} style={{ border: '1px solid #E8EAED', borderRadius: 14, padding: '14px 14px 12px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14 }}>
+                      <div style={{ width: 36, height: 36, borderRadius: '50%', background: m.color, color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, fontWeight: 700 }}>{m.initials}</div>
+                      <div>
+                        <p style={{ fontSize: 13, fontWeight: 600, color: '#111827' }}>{m.name}</p>
+                        <p style={{ fontSize: 11, color: '#9CA3AF' }}>{m.role}</p>
+                      </div>
+                    </div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, marginBottom: 6 }}>
+                      <span style={{ color: '#9CA3AF' }}>가용 시간</span>
+                      <span style={{ fontWeight: 600, color: '#4B5563' }}>{h}시간 / {maxH}시간</span>
+                    </div>
+                    <input type="range" min="0" max={maxH} step="4" value={h}
+                      onChange={e => setCapacity(p => ({ ...p, [m.id]: Number(e.target.value) }))}
+                      style={{ width: '100%', accentColor: m.color, cursor: 'pointer' }} />
+                  </div>
+                )
+              })}
+            </div>
+          </div>
+
+        </>)}
+
+        {/* 로딩 */}
+        {loading && (
+          <div style={{ ...card, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: 280, gap: 16 }}>
+            <div style={{ display: 'flex', gap: 8 }}>
+              {[0,1,2].map(i => (
+                <div key={i} style={{ width: 10, height: 10, borderRadius: '50%', background: '#2563EB', animation: `pulse 1.2s ${i*0.2}s infinite` }} />
+              ))}
+            </div>
+            <p style={{ fontSize: 14, fontWeight: 600, color: '#111827' }}>AI가 스프린트를 설계하고 있어요</p>
+            <style>{`@keyframes pulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:0.25;transform:scale(0.75)}}`}</style>
+          </div>
+        )}
 
           {/* 검토 모드 */}
           {!loading && phase === 'reviewing' && draft && (
@@ -678,7 +954,7 @@ export default function SprintBuilderPage() {
                     <div style={{ padding: '14px 16px', display: 'flex', flexDirection: 'column', gap: 8, minHeight: 120 }}>
                       {draft[key].length === 0 && <div style={{ fontSize: 12, color: '#9CA3AF', textAlign: 'center', padding: '20px 0' }}>태스크 없음</div>}
                       {draft[key].map(task => (
-                        <ReviewTaskCard key={task._id} task={task} onUpdate={updateTask} onDelete={deleteTask} onMoveWeek={moveWeek} allDraftTasks={allDraftTasks} capacityMap={capacity} />
+                        <ReviewTaskCard key={task._id} task={task} onUpdate={updateTask} onDelete={deleteTask} onMoveWeek={moveWeek} allDraftTasks={allDraftTasks} capacityMap={capacity} teamMembers={teamMembers} />
                       ))}
                     </div>
                   </div>
@@ -690,7 +966,8 @@ export default function SprintBuilderPage() {
                 <div style={{ fontSize: 13, fontWeight: 700, color: '#111827', marginBottom: 14 }}>팀원별 배정 작업 시간</div>
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12 }}>
                   {workload.map(m => {
-                    const over = m.sp > 20
+                    const cap = capacity[m.id] ?? (countDays(meta.startDate, meta.endDate, weekdayOnly) * 8)
+                    const over = m.sp > cap * 0.8
                     return (
                       <div key={m.id}>
                         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
@@ -715,8 +992,42 @@ export default function SprintBuilderPage() {
               </button>
             </div>
           )}
-        </div>
+
       </div>
+
+      {/* 하단 고정 CTA — setup 단계만 */}
+      {detailItem && (
+        <TaskDetailModal
+          item={detailItem}
+          members={members}
+          isPM={can.runAI}
+          allItems={items}
+          onSave={patch => updateBacklog(detailItem.id, patch)}
+          onClose={() => setDetailItem(null)}
+        />
+      )}
+
+      {!loading && (
+        <div style={{ position: 'absolute', bottom: 0, left: 240, right: 0, padding: '16px 24px', background: 'rgba(255,255,255,0.95)', backdropFilter: 'blur(8px)', borderTop: '1px solid #E8EAED', display: 'flex', alignItems: 'center', justifyContent: 'space-between', zIndex: 50 }}>
+          {phase === 'setup' ? (<>
+            <div style={{ fontSize: 13, color: '#6B7280' }}>
+              {selected.size === 0 ? '전체 할일에서 태스크를 추가해주세요' : <><strong style={{ color: '#111827' }}>{selected.size}개</strong> 태스크 · <strong style={{ color: '#2563EB' }}>{selectedSP}시간</strong> 선택됨</>}
+            </div>
+            <button onClick={handleGenerate} disabled={!canGenerate}
+              style={{ ...btnPrimary, height: 44, padding: '0 28px', fontSize: 14, opacity: canGenerate ? 1 : 0.4, cursor: canGenerate ? 'pointer' : 'not-allowed' }}>
+              {!can.runAI ? '🔒 PM만 실행 가능' : '✨ AI 계획 초안 만들기'}
+            </button>
+          </>) : (<>
+            <div style={{ fontSize: 13, color: '#6B7280' }}>
+              검토 완료 후 스프린트를 확정하세요
+            </div>
+            <button onClick={handleConfirm} disabled={!can.confirmSprint}
+              style={{ ...btnPrimary, height: 44, padding: '0 32px', fontSize: 14, background: can.confirmSprint ? '#16A34A' : '#9CA3AF', cursor: can.confirmSprint ? 'pointer' : 'not-allowed' }}>
+              {!can.confirmSprint ? '🔒 스프린트 확정' : '✅ 스프린트 확정하기'}
+            </button>
+          </>)}
+        </div>
+      )}
     </div>
   )
 }

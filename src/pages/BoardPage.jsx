@@ -276,7 +276,7 @@ export default function BoardPage() {
   const { sprint, moveTask, updateProgress, updateNote, updateTask } = useSprintStore()
   const { currentUser } = useAuthStore()
   const isPM = currentUser?.role === 'PM'
-  const [showAll, setShowAll] = useState(false)
+  const [showAll, setShowAll] = useState(() => currentUser?.role === 'PM')
 
   function handleOutputLink(taskId, link) {
     updateTask(taskId, { outputLink: link })
@@ -307,7 +307,7 @@ export default function BoardPage() {
 
   const allTasks = sprint.tasks
 
-  const visibleTasks = (isPM || showAll)
+  const visibleTasks = showAll
     ? allTasks
     : allTasks.filter(t => t.member?.name === currentUser?.name)
 
@@ -335,16 +335,14 @@ export default function BoardPage() {
             🔴 블로커 {blockerCount}개
           </span>
         )}
-        {!isPM && (
-          <button onClick={() => setShowAll(p => !p)} style={{
-            padding: '0 14px', height: 36, borderRadius: 9999, fontSize: 12, fontWeight: 600, cursor: 'pointer', border: '1px solid',
-            background: showAll ? '#F4F5F7' : '#EFF6FF',
-            color:      showAll ? '#4B5563' : '#2563EB',
-            borderColor: showAll ? '#E8EAED' : '#BFDBFE',
-          }} className="btn-press-soft">
-            {showAll ? '내 업무만' : '전체 보기'}
-          </button>
-        )}
+        <button onClick={() => setShowAll(p => !p)} style={{
+          padding: '0 14px', height: 36, borderRadius: 9999, fontSize: 12, fontWeight: 600, cursor: 'pointer', border: '1px solid',
+          background: showAll ? '#F4F5F7' : '#EFF6FF',
+          color:      showAll ? '#4B5563' : '#2563EB',
+          borderColor: showAll ? '#E8EAED' : '#BFDBFE',
+        }} className="btn-press-soft">
+          {showAll ? '내 업무만' : '전체 보기'}
+        </button>
         <div style={{ display: 'flex', alignItems: 'center', gap: 16, fontSize: 12, color: '#6B7280' }}>
           <span>{sprint.startDate} ~ {sprint.endDate}</span>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>

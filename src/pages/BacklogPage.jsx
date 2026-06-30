@@ -4,6 +4,8 @@ import Topbar from '../components/layout/Topbar'
 import { useBacklogStore, EMPTY_ITEM } from '../store/useBacklogStore'
 import { useAuthStore } from '../store/useAuthStore'
 import { useTeamStore } from '../store/useTeamStore'
+import { useSprintPlanStore } from '../store/useSprintPlanStore'
+import TaskDetailModal from '../components/TaskDetailModal'
 
 const PRIORITY_OPTIONS  = ['Must', 'Should', 'Could', "Won't"]
 const CATEGORY_OPTIONS  = ['기능', '에픽', 'UI/UX', '인프라', '버그']
@@ -70,7 +72,7 @@ function applyQuickFilter(items, filter) {
   const today = new Date()
   const soon = new Date(today.getTime() + 3 * 24 * 60 * 60 * 1000) // 3일 이내
   switch (filter) {
-    case '미배정':       return items.filter(i => i.status === '미배정' || !i.assignee)
+    case '미배정':       return items.filter(i => i.status === '미배정' || !i.assignees?.length)
     case '마감 임박':    return items.filter(i => i.dueDate && new Date(i.dueDate) <= soon && i.status !== '완료')
     case '업데이트 없음': return items.filter(i => {
       const days = daysSinceUpdate(i.lastUpdatedAt)
@@ -84,179 +86,12 @@ function applyQuickFilter(items, filter) {
   }
 }
 
-// 태스크 상세/편집 모달
-function TaskDetailModal({ item, members, isPM, onSave, onClose, allItems = [] }) {
-  const [form, setForm] = useState({
-    title: item.title,
-    desc: item.desc || '',
-    category: item.category,
-    priority: item.priority,
-    stage: item.stage,
-    estimatedHours: item.estimatedHours || '',
-    difficulty: item.difficulty || '보통',
-    status: item.status || '미배정',
-    dueDate: item.dueDate || '',
-    doneCondition: item.doneCondition || '',
-    outputLink: item.outputLink || '',
-    assignee: item.assignee || null,
-    blockedBy: item.blockedBy || [],
-  })
-
-  return (
-    <div style={{ position: 'fixed', inset: 0, background: 'rgba(17,24,39,0.45)', zIndex: 200, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
-      onClick={e => { if (e.target === e.currentTarget) onClose() }}>
-      <div style={{ ...card, width: 560, maxHeight: '90vh', overflowY: 'auto', padding: 28, display: 'flex', flexDirection: 'column', gap: 18 }}>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-          <p style={{ fontSize: 16, fontWeight: 700, color: '#111827' }}>태스크 상세</p>
-          <button onClick={onClose} style={{ background: 'none', border: 'none', fontSize: 18, color: '#9CA3AF', cursor: 'pointer' }}>✕</button>
-        </div>
-
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-          <div>
-            <label style={labelStyle}>태스크 이름 *</label>
-            <input required style={inputStyle} value={form.title}
-              disabled={!isPM}
-              onChange={e => setForm(f => ({ ...f, title: e.target.value }))} />
-          </div>
-          <div>
-            <label style={labelStyle}>설명</label>
-            <input style={inputStyle} value={form.desc} disabled={!isPM}
-              onChange={e => setForm(f => ({ ...f, desc: e.target.value }))} />
-          </div>
-
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-            <div>
-              <label style={labelStyle}>상태</label>
-              <select style={selectStyle} value={form.status}
-                onChange={e => setForm(f => ({ ...f, status: e.target.value }))}>
-                {STATUS_OPTIONS.map(o => <option key={o}>{o}</option>)}
-              </select>
-            </div>
-            <div>
-              <label style={labelStyle}>우선순위</label>
-              <select style={selectStyle} value={form.priority} disabled={!isPM}
-                onChange={e => setForm(f => ({ ...f, priority: e.target.value }))}>
-                {PRIORITY_OPTIONS.map(o => <option key={o}>{o}</option>)}
-              </select>
-            </div>
-          </div>
-
-          {/* 예상 시간 + 난이도 — 분리된 핵심 필드 */}
-          <div style={{ padding: '14px 16px', borderRadius: 12, background: '#F9FAFB', border: '1px solid #E8EAED' }}>
-            <p style={{ fontSize: 12, fontWeight: 700, color: '#374151', marginBottom: 10 }}>
-              소요 시간 & 난이도
-              <span style={{ fontWeight: 400, color: '#9CA3AF', marginLeft: 6, fontSize: 11 }}>
-                — AI 배정 및 Capacity 계산에 사용돼요
-              </span>
-            </p>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-              <div>
-                <label style={labelStyle}>
-                  예상 시간
-                  <span style={{ fontWeight: 400, color: '#9CA3AF', marginLeft: 4 }}>(시간 단위)</span>
-                </label>
-                <input type="number" min="0.5" max="200" step="0.5"
-                  style={inputStyle} placeholder="예: 4"
-                  value={form.estimatedHours}
-                  onChange={e => setForm(f => ({ ...f, estimatedHours: e.target.value }))} />
-              </div>
-              <div>
-                <label style={labelStyle}>난이도</label>
-                <select style={selectStyle} value={form.difficulty}
-                  onChange={e => setForm(f => ({ ...f, difficulty: e.target.value }))}>
-                  {DIFFICULTY_OPTIONS.map(o => <option key={o}>{o}</option>)}
-                </select>
-              </div>
-            </div>
-          </div>
-
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-            <div>
-              <label style={labelStyle}>마감일</label>
-              <input type="date" style={inputStyle} value={form.dueDate}
-                onChange={e => setForm(f => ({ ...f, dueDate: e.target.value }))} />
-            </div>
-            <div>
-              <label style={labelStyle}>카테고리</label>
-              <select style={selectStyle} value={form.category} disabled={!isPM}
-                onChange={e => setForm(f => ({ ...f, category: e.target.value }))}>
-                {CATEGORY_OPTIONS.map(o => <option key={o}>{o}</option>)}
-              </select>
-            </div>
-          </div>
-
-          {/* 담당자 */}
-          <div>
-            <label style={labelStyle}>담당자</label>
-            <select style={selectStyle} value={form.assignee || ''}
-              onChange={e => setForm(f => ({ ...f, assignee: e.target.value || null }))}>
-              <option value="">미배정</option>
-              {members.map(m => <option key={m.id} value={m.id}>{m.name} ({m.role})</option>)}
-            </select>
-          </div>
-
-          {/* 선행 업무 */}
-          {allItems.filter(i => i.id !== item.id).length > 0 && (
-            <div>
-              <label style={labelStyle}>
-                선행 업무
-                <span style={{ fontWeight: 400, color: '#9CA3AF', marginLeft: 4 }}>— 이 태스크 전에 완료되어야 하는 업무</span>
-              </label>
-              <div style={{ maxHeight: 140, overflowY: 'auto', border: '1px solid #E8EAED', borderRadius: 10, background: '#F9FAFB', padding: '6px 4px', display: 'flex', flexDirection: 'column', gap: 2 }}>
-                {allItems.filter(i => i.id !== item.id).map(i => (
-                  <label key={i.id} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '5px 8px', borderRadius: 8, cursor: 'pointer', background: form.blockedBy.includes(i.id) ? '#EFF6FF' : 'transparent' }}>
-                    <input type="checkbox"
-                      checked={form.blockedBy.includes(i.id)}
-                      onChange={e => {
-                        if (e.target.checked) setForm(f => ({ ...f, blockedBy: [...f.blockedBy, i.id] }))
-                        else setForm(f => ({ ...f, blockedBy: f.blockedBy.filter(id => id !== i.id) }))
-                      }}
-                      style={{ accentColor: '#2563EB', width: 14, height: 14, flexShrink: 0 }}
-                    />
-                    <span style={{ fontSize: 12, color: '#374151', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{i.title}</span>
-                    <span style={{ fontSize: 11, color: '#9CA3AF', marginLeft: 'auto', flexShrink: 0 }}>{i.status || '미배정'}</span>
-                  </label>
-                ))}
-              </div>
-            </div>
-          )}
-
-          <div>
-            <label style={labelStyle}>
-              완료 조건
-              <span style={{ fontWeight: 400, color: '#9CA3AF', marginLeft: 4 }}>— 무엇이 되면 완료인지</span>
-            </label>
-            <textarea style={{ ...inputStyle, resize: 'vertical', minHeight: 64, fontFamily: 'inherit', lineHeight: 1.6 }}
-              placeholder="예: 구글 계정으로 로그인 후 팀 페이지에 진입할 수 있다"
-              value={form.doneCondition}
-              onChange={e => setForm(f => ({ ...f, doneCondition: e.target.value }))} />
-          </div>
-
-          <div>
-            <label style={labelStyle}>
-              산출물 링크
-              <span style={{ fontWeight: 400, color: '#9CA3AF', marginLeft: 4 }}>— Figma, GitHub, Notion 등</span>
-            </label>
-            <input style={inputStyle} placeholder="https://..."
-              value={form.outputLink}
-              onChange={e => setForm(f => ({ ...f, outputLink: e.target.value }))} />
-          </div>
-        </div>
-
-        <div style={{ display: 'flex', gap: 8, paddingTop: 4 }}>
-          <button onClick={() => { onSave(form); onClose() }} style={btnPrimary}>저장</button>
-          <button onClick={onClose} style={btnTertiary}>닫기</button>
-        </div>
-      </div>
-    </div>
-  )
-}
-
 export default function BacklogPage() {
   const navigate = useNavigate()
   const { items, add, update, remove } = useBacklogStore()
   const { currentUser } = useAuthStore()
   const { members } = useTeamStore()
+  const { selected: planSelected, toggle: planToggle } = useSprintPlanStore()
   const isPM = currentUser?.role === 'PM'
 
   const [form, setForm]           = useState({ ...EMPTY_ITEM })
@@ -266,6 +101,8 @@ export default function BacklogPage() {
   const [editId, setEditId]       = useState(null)
   const [detailItem, setDetailItem] = useState(null)
   const [sortBy, setSortBy]       = useState(null) // 'dueDate' | 'priority'
+  const [viewMode, setViewMode]   = useState('list') // 'list' | 'calendar'
+  const [calMonth, setCalMonth]   = useState(() => { const d = new Date(); return { year: d.getFullYear(), month: d.getMonth() } })
 
   const baseFiltered = applyQuickFilter(items, filter)
   const searched = baseFiltered.filter(item =>
@@ -285,7 +122,7 @@ export default function BacklogPage() {
 
   const totalHours = items.reduce((sum, i) => sum + Number(i.estimatedHours || 0), 0)
   const mvpHours   = items.filter(i => i.stage === 'MVP').reduce((sum, i) => sum + Number(i.estimatedHours || 0), 0)
-  const unassigned = items.filter(i => i.status === '미배정' || !i.assignee).length
+  const unassigned = items.filter(i => i.status === '미배정' || !i.assignees?.length).length
   const blockers   = items.filter(i => i.status === '블로커').length
 
   function handleSubmit(e) {
@@ -306,7 +143,7 @@ export default function BacklogPage() {
       dueDate: item.dueDate || '',
       doneCondition: item.doneCondition || '',
       outputLink: item.outputLink || '',
-      assignee: item.assignee || null,
+      assignees: item.assignees || [],
       blockedBy: item.blockedBy || [],
     })
     setEditId(item.id); setShowForm(true)
@@ -444,7 +281,7 @@ export default function BacklogPage() {
           ))}
         </div>
 
-        {/* 빠른 필터 + 검색 */}
+        {/* 빠른 필터 + 검색 + 뷰 토글 */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
           <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
             {QUICK_FILTERS.map(s => (
@@ -454,7 +291,7 @@ export default function BacklogPage() {
             ))}
           </div>
           <div style={{ display: 'flex', gap: 4, marginLeft: 'auto' }}>
-            {[{ key: 'dueDate', label: '마감일순' }, { key: 'priority', label: '우선순위순' }].map(({ key, label }) => (
+            {viewMode === 'list' && [{ key: 'dueDate', label: '마감일순' }, { key: 'priority', label: '우선순위순' }].map(({ key, label }) => (
               <button key={key}
                 onClick={() => setSortBy(sortBy === key ? null : key)}
                 style={{ padding: '5px 12px', borderRadius: 9999, fontSize: 12, fontWeight: 600, cursor: 'pointer', border: `1px solid ${sortBy === key ? '#2563EB' : '#E8EAED'}`, background: sortBy === key ? '#EFF6FF' : '#FFF', color: sortBy === key ? '#2563EB' : '#6B7280' }}>
@@ -462,18 +299,87 @@ export default function BacklogPage() {
               </button>
             ))}
           </div>
-          <input
-            style={{ ...inputStyle, width: 180 }}
-            placeholder="태스크 검색..."
-            value={search} onChange={e => setSearch(e.target.value)}
-            onFocus={e => { e.target.style.borderColor = '#BFDBFE'; e.target.style.background = '#FFF' }}
-            onBlur={e => { e.target.style.borderColor = '#E8EAED'; e.target.style.background = '#F4F5F7' }}
-          />
-          <span style={{ fontSize: 12, color: '#9CA3AF', whiteSpace: 'nowrap' }}>{filtered.length}개</span>
+          {viewMode === 'list' && (
+            <input
+              style={{ ...inputStyle, width: 180 }}
+              placeholder="태스크 검색..."
+              value={search} onChange={e => setSearch(e.target.value)}
+              onFocus={e => { e.target.style.borderColor = '#BFDBFE'; e.target.style.background = '#FFF' }}
+              onBlur={e => { e.target.style.borderColor = '#E8EAED'; e.target.style.background = '#F4F5F7' }}
+            />
+          )}
+          {viewMode === 'list' && <span style={{ fontSize: 12, color: '#9CA3AF', whiteSpace: 'nowrap' }}>{filtered.length}개</span>}
+          {/* 뷰 모드 토글 */}
+          <div style={{ display: 'flex', borderRadius: 10, border: '1px solid #E8EAED', overflow: 'hidden', flexShrink: 0 }}>
+            {[{ v: 'list', label: '☰ 목록' }, { v: 'calendar', label: '📅 달력' }].map(({ v, label }) => (
+              <button key={v} onClick={() => setViewMode(v)}
+                style={{ padding: '5px 14px', fontSize: 12, fontWeight: 600, border: 'none', cursor: 'pointer', background: viewMode === v ? '#2563EB' : '#FFF', color: viewMode === v ? 'white' : '#6B7280' }}>
+                {label}
+              </button>
+            ))}
+          </div>
         </div>
 
+        {/* 달력 뷰 */}
+        {viewMode === 'calendar' && (() => {
+          const { year, month } = calMonth
+          const firstDay = new Date(year, month, 1).getDay()
+          const daysInMonth = new Date(year, month + 1, 0).getDate()
+          const today = new Date()
+          const todayStr = `${today.getFullYear()}-${String(today.getMonth()+1).padStart(2,'0')}-${String(today.getDate()).padStart(2,'0')}`
+          const calItems = applyQuickFilter(items, filter).filter(i => i.dueDate)
+          const byDate = {}
+          calItems.forEach(i => { const d = i.dueDate.slice(0,10); if (!byDate[d]) byDate[d] = []; byDate[d].push(i) })
+          const MONTH_NAMES = ['1월','2월','3월','4월','5월','6월','7월','8월','9월','10월','11월','12월']
+          const DAY_NAMES = ['일','월','화','수','목','금','토']
+          const cells = []
+          for (let i = 0; i < firstDay; i++) cells.push(null)
+          for (let d = 1; d <= daysInMonth; d++) cells.push(d)
+          while (cells.length % 7 !== 0) cells.push(null)
+          return (
+            <div style={{ ...card, boxSizing: 'border-box', width: '100%' }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '14px 20px', borderBottom: '1px solid #E8EAED' }}>
+                <button onClick={() => setCalMonth(p => { const d = new Date(p.year, p.month-1, 1); return { year: d.getFullYear(), month: d.getMonth() } })}
+                  style={{ background: 'none', border: '1px solid #E8EAED', borderRadius: 8, padding: '4px 10px', cursor: 'pointer', fontSize: 14, color: '#4B5563' }}>‹</button>
+                <span style={{ fontSize: 15, fontWeight: 700, color: '#111827' }}>{year}년 {MONTH_NAMES[month]}</span>
+                <button onClick={() => setCalMonth(p => { const d = new Date(p.year, p.month+1, 1); return { year: d.getFullYear(), month: d.getMonth() } })}
+                  style={{ background: 'none', border: '1px solid #E8EAED', borderRadius: 8, padding: '4px 10px', cursor: 'pointer', fontSize: 14, color: '#4B5563' }}>›</button>
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7,1fr)', borderBottom: '1px solid #E8EAED' }}>
+                {DAY_NAMES.map((d, i) => (
+                  <div key={d} style={{ padding: '8px 0', textAlign: 'center', fontSize: 11, fontWeight: 600, color: i===0 ? '#EF4444' : i===6 ? '#2563EB' : '#9CA3AF' }}>{d}</div>
+                ))}
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7,1fr)' }}>
+                {cells.map((day, idx) => {
+                  if (!day) return <div key={`e-${idx}`} style={{ minHeight: 72, borderRight: idx%7!==6 ? '1px solid #F3F4F6' : 'none', borderBottom: '1px solid #F3F4F6', background: '#FAFAFA' }} />
+                  const dateStr = `${year}-${String(month+1).padStart(2,'0')}-${String(day).padStart(2,'0')}`
+                  const dayItems = byDate[dateStr] || []
+                  const isToday = dateStr === todayStr
+                  const dow = (firstDay + day - 1) % 7
+                  return (
+                    <div key={day} style={{ minHeight: 72, borderRight: idx%7!==6 ? '1px solid #F3F4F6' : 'none', borderBottom: '1px solid #F3F4F6', padding: '6px 6px 4px', display: 'flex', flexDirection: 'column', gap: 3 }}>
+                      <div style={{ width: 22, height: 22, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', background: isToday ? '#2563EB' : 'transparent', fontSize: 11, fontWeight: isToday ? 700 : 400, color: isToday ? 'white' : dow===0 ? '#EF4444' : dow===6 ? '#2563EB' : '#374151' }}>{day}</div>
+                      {dayItems.slice(0,3).map(t => {
+                        const ps = PRIORITY_STYLE[t.priority] || PRIORITY_STYLE["Won't"]
+                        return (
+                          <div key={t.id} onClick={() => setDetailItem(t)} title={t.title}
+                            style={{ fontSize: 10, fontWeight: 500, padding: '2px 5px', borderRadius: 4, background: ps.bg, color: ps.color, cursor: 'pointer', overflow: 'hidden', whiteSpace: 'nowrap', textOverflow: 'ellipsis' }}>
+                            {t.title}
+                          </div>
+                        )
+                      })}
+                      {dayItems.length > 3 && <div style={{ fontSize: 9, color: '#9CA3AF', paddingLeft: 5 }}>+{dayItems.length-3}개</div>}
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+          )
+        })()}
+
         {/* 목록 */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+        {viewMode === 'list' && <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
           {filtered.length === 0 && (
             <div style={{ textAlign: 'center', padding: '64px 0', color: '#9CA3AF', fontSize: 14 }}>
               태스크가 없어요.
@@ -514,27 +420,33 @@ export default function BacklogPage() {
                 </div>
 
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
-                  {/* 담당자 */}
-                  {(() => {
-                    const assigneeMember = item.assignee ? members.find(m => m.id === item.assignee) : null
-                    return assigneeMember ? (
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
-                        <div style={{ width: 20, height: 20, borderRadius: '50%', background: assigneeMember.color, color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 9, fontWeight: 700 }}>
-                          {assigneeMember.initials}
-                        </div>
-                        <span style={{ fontSize: 11, color: '#374151', fontWeight: 600 }}>{assigneeMember.name}</span>
-                      </div>
-                    ) : null
-                  })()}
-
-                  {/* 작성자 (담당자와 다른 경우만) */}
-                  {author && author.id !== item.assignee && (
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
-                      <div style={{ width: 18, height: 18, borderRadius: '50%', background: author.color, color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 8, fontWeight: 700, opacity: 0.6 }}>
+                  {/* 작성자 */}
+                  {author && (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                      <div style={{ width: 18, height: 18, borderRadius: '50%', background: author.color, color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 8, fontWeight: 700 }}>
                         {author.initials}
                       </div>
+                      <span style={{ fontSize: 10, color: '#9CA3AF' }}>작성</span>
                     </div>
                   )}
+
+                  {/* 담당자 구분선 */}
+                  {author && (item.assignees || []).length > 0 && (
+                    <span style={{ fontSize: 10, color: '#D1D5DB' }}>→</span>
+                  )}
+
+                  {/* 담당자 */}
+                  {(item.assignees || []).map(aid => {
+                    const m = members.find(m => m.id === aid)
+                    return m ? (
+                      <div key={aid} style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                        <div style={{ width: 20, height: 20, borderRadius: '50%', background: m.color, color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 9, fontWeight: 700 }}>
+                          {m.initials}
+                        </div>
+                        <span style={{ fontSize: 11, color: '#374151', fontWeight: 600 }}>{m.name}</span>
+                      </div>
+                    ) : null
+                  })}
 
                   {/* 상태 */}
                   <span style={{ fontSize: 11, fontWeight: 600, padding: '2px 8px', borderRadius: 9999, background: ss.bg, color: ss.color, border: `1px solid ${ss.border}` }}>
@@ -572,6 +484,14 @@ export default function BacklogPage() {
                   )}
 
                   <div style={{ display: 'flex', gap: 4, marginLeft: 4 }} onClick={e => e.stopPropagation()}>
+                    {isPM && (() => {
+                      const inPlan = planSelected.has(item.id)
+                      return (
+                        <button onClick={() => planToggle(item.id)}
+                          style={{ padding: '4px 10px', fontSize: 11, fontWeight: 600, borderRadius: 8, cursor: 'pointer', border: `1px solid ${inPlan ? '#BFDBFE' : '#E8EAED'}`, background: inPlan ? '#EFF6FF' : '#FFF', color: inPlan ? '#2563EB' : '#6B7280', whiteSpace: 'nowrap' }}
+                          className="btn-press-soft">{inPlan ? '✓ 계획에 추가됨' : '+ 계획에 추가'}</button>
+                      )
+                    })()}
                     {isPM && (
                       <button onClick={() => handleEdit(item)}
                         style={{ padding: '4px 10px', fontSize: 11, fontWeight: 600, border: '1px solid #E8EAED', borderRadius: 8, background: '#FFF', color: '#4B5563', cursor: 'pointer' }}
@@ -587,7 +507,7 @@ export default function BacklogPage() {
               </div>
             )
           })}
-        </div>
+        </div>}
       </div>
     </div>
   )

@@ -3,7 +3,23 @@ import { useNavigate } from 'react-router-dom'
 import Topbar from '../components/layout/Topbar'
 import { useBacklogStore } from '../store/useBacklogStore'
 import { useAuthStore } from '../store/useAuthStore'
+import { useTeamStore } from '../store/useTeamStore'
 import { callClaude } from '../utils/claude'
+
+function parseAssignees(line, members) {
+  const found = []
+  // @이름 형식 전부 추출
+  const atMatches = [...line.matchAll(/@(\S+)/g)]
+  for (const match of atMatches) {
+    const hit = members.find(m => m.name.includes(match[1]) || match[1].includes(m.name))
+    if (hit && !found.includes(hit.id)) found.push(hit.id)
+  }
+  // 이름 직접 포함된 경우
+  for (const m of members) {
+    if (line.includes(m.name) && !found.includes(m.id)) found.push(m.id)
+  }
+  return found
+}
 
 const PRIORITY_OPTIONS   = ['Must', 'Should', 'Could', "Won't"]
 const CATEGORY_OPTIONS   = ['기능', '에픽', 'UI/UX', '인프라', '버그']
@@ -54,6 +70,7 @@ export default function CapturePage() {
   const navigate = useNavigate()
   const { add }  = useBacklogStore()
   const { currentUser } = useAuthStore()
+  const { members } = useTeamStore()
 
   const [input,   setInput]   = useState('')
   const [tasks,   setTasks]   = useState([])
@@ -92,12 +109,18 @@ export default function CapturePage() {
 
       const raw = await callClaude(system, lines.join('\n'))
       const json = JSON.parse(raw.trim())
-      const analyzed = json.map((item, idx) => ({ id: idx, ...item }))
+      const analyzed = json.map((item, idx) => ({
+        id: idx, ...item,
+        assignees: parseAssignees(lines[idx] || '', members),
+      }))
       setTasks(analyzed)
       setChecked(new Set(analyzed.map(t => t.id)))
     } catch (e) {
       // API 실패 시 키워드 분석으로 폴백
-      const analyzed = lines.map((line, idx) => ({ id: idx, ...analyzeTask(line) }))
+      const analyzed = lines.map((line, idx) => ({
+        id: idx, ...analyzeTask(line),
+        assignee: parseAssignee(line, members),
+      }))
       setTasks(analyzed)
       setChecked(new Set(analyzed.map(t => t.id)))
     }
@@ -120,6 +143,8 @@ export default function CapturePage() {
         priority: t.priority, stage: t.stage,
         estimatedHours: t.estimatedHours || 0,
         difficulty: t.difficulty || '보통',
+        assignees: t.assignees ?? [],
+        status: t.assignees?.length ? '예정' : '미배정',
       }, currentUser?.id ?? null)
     )
     setAdded(true)
@@ -187,7 +212,7 @@ export default function CapturePage() {
               lineHeight: '22px', resize: 'none', outline: 'none',
               fontFamily: 'inherit',
             }}
-            placeholder={'구글 로그인 붙여야 함\n백로그 화면에서 필터 기능 추가\n디자인 시안 만들기\nAPI 에러 처리 로직 추가'}
+            placeholder={'구글 로그인 붙여야 함 @박준혁\n백로그 화면에서 필터 기능 추가\n디자인 시안 만들기 최지은\nAPI 에러 처리 로직 추가'}
             value={input}
             onChange={e => { setInput(e.target.value); setAdded(false) }}
             onFocus={e => { e.target.style.borderColor = '#BFDBFE'; e.target.style.background = '#FFF' }}
@@ -313,6 +338,30 @@ export default function CapturePage() {
                           onFocus={e => e.target.style.borderBottomColor = '#BFDBFE'}
                           onBlur={e => e.target.style.borderBottomColor = 'transparent'}
                         />
+
+                        {/* 담당자 — 멀티 선택 */}
+                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginBottom: 8, alignItems: 'center' }}>
+                          {(task.assignees || []).map(aid => {
+                            const m = members.find(m => m.id === aid)
+                            return m ? (
+                              <div key={aid} style={{ display: 'flex', alignItems: 'center', gap: 4, background: m.color + '22', borderRadius: 9999, padding: '2px 8px' }}>
+                                <div style={{ width: 14, height: 14, borderRadius: '50%', background: m.color, color: 'white', fontSize: 7, fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>{m.initials}</div>
+                                <span style={{ fontSize: 11, color: m.color, fontWeight: 600 }}>{m.name}</span>
+                                <button onClick={() => updateTask(task.id, 'assignees', (task.assignees || []).filter(id => id !== aid))}
+                                  style={{ fontSize: 9, color: m.color, background: 'none', border: 'none', cursor: 'pointer', padding: 0, lineHeight: 1, opacity: 0.7 }}>✕</button>
+                              </div>
+                            ) : null
+                          })}
+                          <select value="" onChange={e => {
+                            if (!e.target.value) return
+                            const next = [...new Set([...(task.assignees || []), e.target.value])]
+                            updateTask(task.id, 'assignees', next)
+                          }}
+                            style={{ fontSize: 11, color: '#9CA3AF', background: 'none', border: 'none', cursor: 'pointer', outline: 'none' }}>
+                            <option value="">+ 담당자</option>
+                            {members.filter(m => !(task.assignees || []).includes(m.id)).map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
+                          </select>
+                        </div>
 
                         {/* 메타 태그 */}
                         <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>

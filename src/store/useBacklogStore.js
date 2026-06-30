@@ -16,7 +16,7 @@ const DEFAULT_ITEMS = [
     difficulty: '보통',
     desc: '구글 OAuth 2.0 연동 로그인',
     capturedBy: 'm0',
-    assignee: null,
+    assignees: [],
     status: '미배정',
     dueDate: null,
     doneCondition: '구글 계정으로 로그인 후 팀 페이지에 진입할 수 있다',
@@ -34,7 +34,7 @@ const DEFAULT_ITEMS = [
     difficulty: '보통',
     desc: '팀 워크스페이스 생성, 이메일 초대',
     capturedBy: 'm0',
-    assignee: null,
+    assignees: [],
     status: '미배정',
     dueDate: null,
     doneCondition: '팀장이 팀을 만들고 팀원을 초대해 함께 로그인할 수 있다',
@@ -52,7 +52,7 @@ const DEFAULT_ITEMS = [
     difficulty: '보통',
     desc: '에픽/태스크 생성·수정·삭제·정렬',
     capturedBy: 'm1',
-    assignee: null,
+    assignees: [],
     status: '미배정',
     dueDate: null,
     doneCondition: '태스크를 추가·수정·삭제하고 필터로 조회할 수 있다',
@@ -70,7 +70,7 @@ const DEFAULT_ITEMS = [
     difficulty: '높음',
     desc: '전체 할 일 → AI 스프린트 자동 구성 + 추천 이유 표시',
     capturedBy: 'm0',
-    assignee: null,
+    assignees: [],
     status: '미배정',
     dueDate: null,
     doneCondition: 'AI 초안에 추천 이유가 표시되고 PM이 수정 후 확정할 수 있다',
@@ -88,7 +88,7 @@ const DEFAULT_ITEMS = [
     difficulty: '낮음',
     desc: '팀원별 스프린트 가용 시간 입력',
     capturedBy: 'm3',
-    assignee: null,
+    assignees: [],
     status: '미배정',
     dueDate: null,
     doneCondition: '팀원이 이번 기간 참여 가능 시간을 입력하면 AI가 배정에 반영한다',
@@ -106,7 +106,7 @@ const DEFAULT_ITEMS = [
     difficulty: '보통',
     desc: '예정 / 진행 중 / 검토 중 / 완료 + 블로커 배지',
     capturedBy: 'm2',
-    assignee: null,
+    assignees: [],
     status: '미배정',
     dueDate: null,
     doneCondition: '팀원이 카드를 이동하면 상태가 바뀌고 블로커가 배지로 표시된다',
@@ -124,7 +124,7 @@ const DEFAULT_ITEMS = [
     difficulty: '높음',
     desc: '에픽 → 스토리 → 태스크 자동 분해',
     capturedBy: 'm3',
-    assignee: null,
+    assignees: [],
     status: '미배정',
     dueDate: null,
     doneCondition: '에픽을 입력하면 AI가 하위 태스크 목록을 제안하고 편집할 수 있다',
@@ -142,7 +142,7 @@ const DEFAULT_ITEMS = [
     difficulty: '보통',
     desc: 'PM용 확인 필요 항목 + 팀원용 내 할 일 중심',
     capturedBy: 'm4',
-    assignee: null,
+    assignees: [],
     status: '미배정',
     dueDate: null,
     doneCondition: 'PM은 미배정·블로커를 3분 내 파악하고 팀원은 10초 내 할 일을 찾는다',
@@ -160,7 +160,7 @@ const DEFAULT_ITEMS = [
     difficulty: '보통',
     desc: '스프린트 알림, 태스크 상태 업데이트',
     capturedBy: 'm1',
-    assignee: null,
+    assignees: [],
     status: '미배정',
     dueDate: null,
     doneCondition: '',
@@ -178,7 +178,7 @@ const DEFAULT_ITEMS = [
     difficulty: '보통',
     desc: 'AI 자동 스프린트 회고 생성',
     capturedBy: 'm0',
-    assignee: null,
+    assignees: [],
     status: '미배정',
     dueDate: null,
     doneCondition: '',
@@ -196,7 +196,7 @@ const DEFAULT_ITEMS = [
     difficulty: '보통',
     desc: '스프린트 보드 노션 자동 동기화',
     capturedBy: 'm4',
-    assignee: null,
+    assignees: [],
     status: '미배정',
     dueDate: null,
     doneCondition: '',
@@ -214,7 +214,7 @@ const DEFAULT_ITEMS = [
     difficulty: '낮음',
     desc: '팀원별 업무 부하 시각화',
     capturedBy: 'm2',
-    assignee: null,
+    assignees: [],
     status: '미배정',
     dueDate: null,
     doneCondition: '',
@@ -232,7 +232,7 @@ const DEFAULT_ITEMS = [
     difficulty: '높음',
     desc: 'GitHub 이슈 → 전체 할 일 자동 가져오기',
     capturedBy: 'm1',
-    assignee: null,
+    assignees: [],
     status: '미배정',
     dueDate: null,
     doneCondition: '',
@@ -250,7 +250,7 @@ const DEFAULT_ITEMS = [
     difficulty: '높음',
     desc: 'iOS 네이티브 앱',
     capturedBy: 'm0',
-    assignee: null,
+    assignees: [],
     status: '미배정',
     dueDate: null,
     doneCondition: '',
@@ -268,7 +268,7 @@ const DEFAULT_ITEMS = [
     difficulty: '높음',
     desc: '스프린트 개선 조언 AI 코치',
     capturedBy: 'm3',
-    assignee: null,
+    assignees: [],
     status: '미배정',
     dueDate: null,
     doneCondition: '',
@@ -278,13 +278,24 @@ const DEFAULT_ITEMS = [
   },
 ]
 
+function migrate(items) {
+  // assignee(string) → assignees(array) 마이그레이션
+  return items.map(i => {
+    if (!('assignees' in i)) {
+      const { assignee, ...rest } = i
+      return { ...rest, assignees: assignee ? [assignee] : [] }
+    }
+    return i
+  })
+}
+
 function load() {
   try {
     const raw = localStorage.getItem(STORAGE_KEY)
     if (!raw) return DEFAULT_ITEMS
     const parsed = JSON.parse(raw)
     if (!parsed.length) return DEFAULT_ITEMS
-    return parsed
+    return migrate(parsed)
   } catch {
     return DEFAULT_ITEMS
   }
@@ -303,7 +314,7 @@ const EMPTY_ITEM = {
   estimatedHours: '',
   difficulty: '보통',
   status: '미배정',
-  assignee: null,
+  assignees: [],
   dueDate: null,
   doneCondition: '',
   outputLink: '',
