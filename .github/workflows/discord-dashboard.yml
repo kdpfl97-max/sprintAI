@@ -14,53 +14,42 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Calculate Total Commits and Format Message
-        id: info
+      - name: Send Discord Notification
         run: |
-          # 1. 총 커밋 개수 구하기
           TOTAL_COMMITS=$(git rev-list --count HEAD)
-          echo "TOTAL_COUNT=$TOTAL_COMMITS" >> $GITHUB_ENV
-          
-          # 2. 최신 커밋 메시지 가져오기 (제목과 본문 포함 최대 5줄)
-          LATEST_MSG=$(git log -1 --pretty=%B | head -n 5)
-          
-          # 3. 디스코드 JSON 전송을 위한 완벽한 줄바꿈/따옴표 이스케이프 처리
-          # (jq를 이용해 문자열을 안전한 JSON 규격으로 변환합니다)
-          SAFE_MSG=$(echo "$LATEST_MSG" | jq -R -s '.')
-          echo "SAFE_MSG=$SAFE_MSG" >> $GITHUB_ENV
+          # 커밋 제목만 (첫 줄) — 길이 제한 및 특수문자 안전 처리
+          COMMIT_TITLE=$(git log -1 --pretty=%s)
 
-      - name: Update Discord Message
-        run: |
-          API_URL="${{ secrets.DISCORD_WEBHOOK_URL }}/messages/${{ secrets.DISCORD_MESSAGE_ID }}"
-          
-          # JSON 데이터 구조 정의
-          JSON_DATA=$(cat <<EOF
-          {
-            "embeds": [
-              {
-                "title": "📊 디자인 & 개발 프로젝트 대시보드",
-                "color": 5814783,
-                "fields": [
+          # jq로 JSON 전체를 빌드 → 특수문자·한국어·개행 모두 안전하게 이스케이프
+          JSON_DATA=$(jq -n \
+            --argjson color 5814783 \
+            --arg count "$TOTAL_COMMITS" \
+            --arg msg "$COMMIT_TITLE" \
+            --arg ts "$(date -u +'%Y-%m-%dT%H:%M:%SZ')" \
+            '{
+              embeds: [{
+                title: "📊 디자인 & 개발 프로젝트 대시보드",
+                color: $color,
+                fields: [
                   {
-                    "name": "📈 누적 커밋 횟수",
-                    "value": "🟢 현재까지 총 **${{ env.TOTAL_COUNT }}**번의 변경 사항이 반영되었습니다.",
-                    "inline": false
+                    name: "📈 누적 커밋 횟수",
+                    value: ("🟢 현재까지 총 **" + $count + "**번의 변경 사항이 반영되었습니다."),
+                    inline: false
                   },
                   {
-                    "name": "📝 최신 업데이트 내용",
-                    "value": ${{ env.SAFE_MSG }},
-                    "inline": false
+                    name: "📝 최신 업데이트 내용",
+                    value: $msg,
+                    inline: false
                   }
                 ],
-                "footer": {
-                  "text": "실시간 자동 업데이트 중"
-                },
-                "timestamp": "$(date -u +'%Y-%m-%dT%H:%M:%SZ')"
-              }
-            ]
-          }
-          EOF
-          )
-          
-          # 디스코드에 PATCH 요청 전송
-          curl -X PATCH -H "Content-Type: application/json" -d "$JSON_DATA" "$API_URL"
+                footer: { text: "실시간 자동 업데이트 중" },
+                timestamp: $ts
+              }]
+            }')
+
+          API_URL="${{ secrets.DISCORD_WEBHOOK_URL }}/messages/${{ secrets.DISCORD_MESSAGE_ID }}"
+          curl -s -o /dev/null -w "%{http_code}" \
+            -X PATCH \
+            -H "Content-Type: application/json" \
+            -d "$JSON_DATA" \
+            "$API_URL"
