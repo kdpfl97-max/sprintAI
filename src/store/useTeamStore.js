@@ -1,6 +1,20 @@
 import { useState, useEffect } from 'react'
 
 const STORAGE_KEY = 'sprintai_team'
+const SETTINGS_KEY = 'sprintai_team_settings'
+
+function generateCode() {
+  return 'SPR-' + Math.random().toString(36).substring(2, 6).toUpperCase()
+}
+
+function loadSettings() {
+  try { return JSON.parse(localStorage.getItem(SETTINGS_KEY) || 'null') || { teamCode: generateCode(), discordWebhook: '' } }
+  catch { return { teamCode: generateCode(), discordWebhook: '' } }
+}
+
+function saveSettings(s) {
+  try { localStorage.setItem(SETTINGS_KEY, JSON.stringify(s)) } catch {}
+}
 
 const DEFAULT_MEMBERS = [
   { id: 'm0', name: '곽예리', role: 'PM',        email: 'yeri@team.io',    color: '#2563EB', initials: '곽', capacity: 80, status: 'active' },
@@ -35,8 +49,10 @@ export { ROLE_OPTIONS, COLOR_OPTIONS }
 
 export function useTeamStore() {
   const [members, setMembers] = useState(load)
+  const [settings, setSettings] = useState(loadSettings)
 
   useEffect(() => { save(members) }, [members])
+  useEffect(() => { saveSettings(settings) }, [settings])
 
   function addMember(data) {
     const initials = data.name.slice(0, 1)
@@ -59,5 +75,27 @@ export function useTeamStore() {
     setMembers(prev => prev.filter(m => m.id !== id))
   }
 
-  return { members, addMember, updateMember, removeMember }
+  function regenerateCode() {
+    setSettings(s => ({ ...s, teamCode: generateCode() }))
+  }
+
+  function setDiscordWebhook(url) {
+    setSettings(s => ({ ...s, discordWebhook: url }))
+  }
+
+  // 팀 코드로 팀 참여 (이름+역할 입력 → 멤버 추가 + 반환)
+  function joinWithCode(code, name, role, color) {
+    if (code !== settings.teamCode) return null
+    const existing = members.find(m => m.name === name)
+    if (existing) return existing
+    const newMember = {
+      id: `m${Date.now()}`, name, role,
+      initials: name.slice(0, 1), color: color || '#2563EB',
+      capacity: 80, status: 'active', email: '',
+    }
+    setMembers(prev => [...prev, newMember])
+    return newMember
+  }
+
+  return { members, addMember, updateMember, removeMember, settings, regenerateCode, setDiscordWebhook, joinWithCode }
 }

@@ -4,6 +4,8 @@ import Topbar from '../components/layout/Topbar'
 import { useSprintStore } from '../store/useSprintStore'
 import { useAuthStore } from '../store/useAuthStore'
 import { useBacklogStore } from '../store/useBacklogStore'
+import { useNotificationStore } from '../store/useNotificationStore'
+import { useTeamStore } from '../store/useTeamStore'
 
 const card = {
   background: '#FFFFFF',
@@ -194,11 +196,127 @@ function StatusDistBar({ tasks }) {
   )
 }
 
+// 간트 차트
+function GanttChart({ tasks, startDate, endDate }) {
+  const start = new Date(startDate.replace(/\./g, '-'))
+  const end   = new Date(endDate.replace(/\./g, '-'))
+  const today = new Date(); today.setHours(0, 0, 0, 0)
+  const totalDays = Math.max(1, Math.round((end - start) / 86400000))
+
+  const STATUS_COLOR = { done: '#10B981', inprogress: '#2563EB', review: '#F59E0B', todo: '#D1D5DB' }
+  const LABEL_W = 220, ROW_H = 38, CHART_W = 560, PAD_TOP = 28
+  const W = LABEL_W + CHART_W
+
+  function xOf(date) {
+    const d = new Date(date); d.setHours(0, 0, 0, 0)
+    return LABEL_W + Math.max(0, Math.min(1, (d - start) / ((end - start) || 1))) * CHART_W
+  }
+
+  const interval = totalDays > 21 ? 7 : totalDays > 10 ? 3 : 1
+  const markers = []
+  for (let i = 0; i <= totalDays; i += interval) {
+    const d = new Date(start.getTime() + i * 86400000)
+    markers.push({ x: LABEL_W + (i / totalDays) * CHART_W, label: `${d.getMonth()+1}/${d.getDate()}` })
+  }
+
+  const todayX = xOf(today)
+  const totalH = PAD_TOP + tasks.length * ROW_H + 8
+
+  return (
+    <div style={{ overflowX: 'auto' }}>
+      <svg viewBox={`0 0 ${W} ${totalH}`} style={{ width: '100%', minWidth: W, height: totalH, display: 'block' }}>
+        {/* 날짜 마커 */}
+        {markers.map((m, i) => (
+          <g key={i}>
+            <line x1={m.x} y1={PAD_TOP - 8} x2={m.x} y2={totalH} stroke="#F3F4F6" strokeWidth="1"/>
+            <text x={m.x} y={PAD_TOP - 10} fontSize="10" fill="#9CA3AF" textAnchor="middle">{m.label}</text>
+          </g>
+        ))}
+
+        {/* 오늘 라인 */}
+        {todayX >= LABEL_W && todayX <= W && (
+          <>
+            <line x1={todayX} y1={0} x2={todayX} y2={totalH} stroke="#EF4444" strokeWidth="1.5" strokeDasharray="4,2" opacity="0.7"/>
+            <text x={todayX} y={PAD_TOP - 10} fontSize="10" fill="#EF4444" textAnchor="middle" fontWeight="bold">오늘</text>
+          </>
+        )}
+
+        {/* 헤더 구분선 */}
+        <line x1={0} y1={PAD_TOP - 2} x2={W} y2={PAD_TOP - 2} stroke="#E8EAED" strokeWidth="1"/>
+
+        {/* 태스크 행 */}
+        {tasks.map((task, i) => {
+          const y = PAD_TOP + i * ROW_H
+          const color = STATUS_COLOR[task.status] || '#D1D5DB'
+          const barX1 = LABEL_W + 4
+          const barX2 = task.dueDate ? Math.min(xOf(new Date(task.dueDate)), LABEL_W + CHART_W - 4) : LABEL_W + CHART_W - 4
+          const barW = Math.max(6, barX2 - barX1)
+          const opacity = task.status === 'todo' ? 0.35 : 0.85
+
+          return (
+            <g key={task.id}>
+              <rect x={0} y={y} width={W} height={ROW_H - 1} fill={i % 2 === 0 ? '#FAFAFA' : '#FFF'}/>
+
+              {/* 담당자 아바타 */}
+              {task.member ? (
+                <>
+                  <circle cx={14} cy={y + ROW_H/2} r={10} fill={task.member.color}/>
+                  <text x={14} y={y + ROW_H/2 + 4} fontSize="9" fill="white" textAnchor="middle" fontWeight="bold">
+                    {task.member.initials}
+                  </text>
+                </>
+              ) : (
+                <circle cx={14} cy={y + ROW_H/2} r={10} fill="#E5E7EB"/>
+              )}
+
+              {/* 태스크 제목 */}
+              <text x={30} y={y + ROW_H/2 + 4} fontSize="12" fill="#374151">
+                {task.title.length > 18 ? task.title.slice(0, 18) + '…' : task.title}
+              </text>
+
+              {/* 담당자 이름 (작게) */}
+              {task.member && (
+                <text x={30} y={y + ROW_H/2 + 14} fontSize="9" fill="#9CA3AF">
+                  {task.member.name}
+                </text>
+              )}
+
+              {/* 간트 바 */}
+              <rect x={barX1} y={y + 8} width={barW} height={ROW_H - 18} fill={color} rx="3" opacity={opacity}/>
+
+              {/* 완료 표시 */}
+              {task.status === 'done' && (
+                <text x={barX1 + barW/2} y={y + ROW_H/2 + 4} fontSize="9" fill="white" textAnchor="middle" fontWeight="bold">✓</text>
+              )}
+            </g>
+          )
+        })}
+      </svg>
+      {/* 범례 */}
+      <div style={{ display: 'flex', gap: 16, padding: '10px 4px 0', flexWrap: 'wrap' }}>
+        {[['done','#10B981','완료'], ['inprogress','#2563EB','진행 중'], ['review','#F59E0B','검토 중'], ['todo','#D1D5DB','예정']].map(([,c,l]) => (
+          <div key={l} style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+            <div style={{ width: 12, height: 8, borderRadius: 2, background: c }}/>
+            <span style={{ fontSize: 11, color: '#6B7280' }}>{l}</span>
+          </div>
+        ))}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+          <div style={{ width: 12, height: 2, background: '#EF4444' }}/>
+          <span style={{ fontSize: 11, color: '#6B7280' }}>오늘</span>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 /* ─────────────────────────────────────────────
    PM 홈
 ───────────────────────────────────────────── */
-function PMHome({ currentUser, sprint }) {
+function PMHome({ currentUser, sprint, onSendNotification }) {
   const [expandedMember, setExpandedMember] = useState(null)
+  const [activeTab, setActiveTab] = useState('현황')
+  const [sendModal, setSendModal] = useState(false)
+  const [notifMsg, setNotifMsg] = useState('')
 
   const tasks     = sprint.tasks
   const done      = tasks.filter(t => t.status === 'done')
@@ -281,6 +399,75 @@ function PMHome({ currentUser, sprint }) {
 
   return (
     <div style={{ flex: 1, overflowY: 'auto', background: '#F4F5F7', padding: '20px 24px', display: 'flex', flexDirection: 'column', gap: 16 }}>
+
+      {/* 알림 발송 모달 */}
+      {sendModal && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(17,24,39,0.45)', zIndex: 300, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+          onClick={e => { if (e.target === e.currentTarget) setSendModal(false) }}>
+          <div style={{ background: '#fff', borderRadius: 20, padding: 28, width: 440, display: 'flex', flexDirection: 'column', gap: 16, boxShadow: '0 20px 60px rgba(17,24,39,0.2)' }}>
+            <div>
+              <p style={{ fontSize: 16, fontWeight: 700, color: '#111827', marginBottom: 4 }}>📢 팀에게 알림 보내기</p>
+              <p style={{ fontSize: 12, color: '#9CA3AF' }}>모든 팀원의 알림함에 전달됩니다</p>
+            </div>
+            <div style={{ padding: '12px 14px', borderRadius: 12, background: '#F4F5F7', border: '1px solid #E8EAED' }}>
+              <p style={{ fontSize: 11, fontWeight: 600, color: '#6B7280', marginBottom: 6 }}>스프린트 현황 자동 요약</p>
+              <p style={{ fontSize: 12, color: '#374151', lineHeight: '18px' }}>
+                📊 {sprint.name} 현황: 완료 {tasks.filter(t=>t.status==='done').length}/{tasks.length}개 ({pct}%) · 남은 기간 {daysLeft}일
+                {blockerTasks.length > 0 ? ` · 블로커 ${blockerTasks.length}건` : ''}
+              </p>
+            </div>
+            <div>
+              <label style={{ fontSize: 12, fontWeight: 600, color: '#4B5563', display: 'block', marginBottom: 6 }}>추가 메시지 (선택)</label>
+              <textarea
+                value={notifMsg}
+                onChange={e => setNotifMsg(e.target.value)}
+                placeholder="팀원들에게 전달할 내용을 입력하세요..."
+                rows={3}
+                style={{ width: '100%', padding: '10px 12px', border: '1px solid #E8EAED', borderRadius: 10, fontSize: 13, color: '#111827', resize: 'none', outline: 'none', boxSizing: 'border-box', background: '#F9FAFB' }}
+              />
+            </div>
+            <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+              <button onClick={() => setSendModal(false)} style={{ padding: '0 18px', height: 38, borderRadius: 10, border: '1px solid #E8EAED', background: '#F4F5F7', fontSize: 13, fontWeight: 600, color: '#374151', cursor: 'pointer' }}>취소</button>
+              <button onClick={() => {
+                const summary = `📊 ${sprint.name} 현황: 완료 ${tasks.filter(t=>t.status==='done').length}/${tasks.length}개 (${pct}%) · 남은 ${daysLeft}일${blockerTasks.length > 0 ? ` · 블로커 ${blockerTasks.length}건` : ''}`
+                onSendNotification(summary, notifMsg)
+                setNotifMsg('')
+                setSendModal(false)
+              }} style={{ padding: '0 18px', height: 38, borderRadius: 10, border: 'none', background: '#2563EB', fontSize: 13, fontWeight: 600, color: '#fff', cursor: 'pointer' }}>
+                📢 알림 보내기
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 탭 + 알림 버튼 */}
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+        <div style={{ display: 'flex', gap: 4, background: '#E8EAED', borderRadius: 10, padding: 3 }}>
+          {['현황', '간트'].map(tab => (
+            <button key={tab} onClick={() => setActiveTab(tab)} style={{
+              padding: '6px 18px', borderRadius: 8, border: 'none', fontSize: 13, fontWeight: 600, cursor: 'pointer',
+              background: activeTab === tab ? '#fff' : 'transparent',
+              color: activeTab === tab ? '#111827' : '#6B7280',
+              boxShadow: activeTab === tab ? '0 1px 3px rgba(0,0,0,0.1)' : 'none',
+            }}>{tab}</button>
+          ))}
+        </div>
+        <button onClick={() => setSendModal(true)} style={{
+          padding: '0 16px', height: 36, borderRadius: 10, border: '1px solid #BFDBFE',
+          background: '#EFF6FF', color: '#2563EB', fontSize: 13, fontWeight: 600, cursor: 'pointer',
+        }}>📢 팀에게 알림 보내기</button>
+      </div>
+
+      {/* 간트 뷰 */}
+      {activeTab === '간트' && (
+        <div style={{ ...card, padding: '16px 20px' }}>
+          <p style={{ fontSize: 13, fontWeight: 700, color: '#111827', marginBottom: 14 }}>전체 태스크 간트 뷰</p>
+          <GanttChart tasks={tasks} startDate={sprint.startDate} endDate={sprint.endDate} />
+        </div>
+      )}
+
+      {activeTab === '현황' && <>
 
       {/* 핵심 지표 4개 */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12 }}>
@@ -411,6 +598,8 @@ function PMHome({ currentUser, sprint }) {
           </div>
         </div>
       </div>
+
+      </> }
     </div>
   )
 }
@@ -661,7 +850,21 @@ export default function DashboardPage() {
   const { sprint, closeSprint, moveTask } = useSprintStore()
   const { currentUser, can }              = useAuthStore()
   const { add: addToBacklog }             = useBacklogStore()
+  const { push: pushNotif }               = useNotificationStore()
+  const { settings }                      = useTeamStore()
   const [closeModal, setCloseModal]       = useState(false)
+
+  function handleSendNotification(summary, extra) {
+    pushNotif({ icon: '📢', title: 'PM 공지', body: summary + (extra ? '\n' + extra : '') })
+    // Discord 웹훅이 설정된 경우 발송
+    if (settings.discordWebhook) {
+      fetch(settings.discordWebhook, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ content: summary + (extra ? '\n' + extra : '') }),
+      }).catch(() => {})
+    }
+  }
 
   const isPM = currentUser?.role === 'PM'
 
@@ -727,7 +930,7 @@ export default function DashboardPage() {
       </Topbar>
 
       {isPM ? (
-        <PMHome currentUser={currentUser} sprint={sprint} />
+        <PMHome currentUser={currentUser} sprint={sprint} onSendNotification={handleSendNotification} />
       ) : currentUser ? (
         <MemberHome currentUser={currentUser} sprint={sprint} moveTask={moveTask} />
       ) : (

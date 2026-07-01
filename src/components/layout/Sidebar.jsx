@@ -3,6 +3,7 @@ import { NavLink, useNavigate } from 'react-router-dom'
 import { useAuthStore } from '../../store/useAuthStore'
 import { useTeamStore } from '../../store/useTeamStore'
 import { useSprintStore } from '../../store/useSprintStore'
+import { useNotificationStore } from '../../store/useNotificationStore'
 
 // roles: 'PM' | 'member' | 'guest' (비로그인)
 const NAV_ITEMS = [
@@ -42,6 +43,8 @@ export default function Sidebar() {
   const { members } = useTeamStore()
   const { sprint } = useSprintStore()
   const [showPicker, setShowPicker] = useState(false)
+  const [showNotif, setShowNotif] = useState(false)
+  const { notifications, markRead, markAllRead, clear, unread } = useNotificationStore()
 
   const hasActiveSprint = sprint?.status === 'active'
   const sprintPct = (() => {
@@ -258,6 +261,68 @@ export default function Sidebar() {
           </div>
         )}
       </nav>
+
+      {/* 알림 벨 */}
+      <div style={{ margin: '0 10px 6px', position: 'relative' }}>
+        <button onClick={() => setShowNotif(p => !p)} style={{
+          width: '100%', display: 'flex', alignItems: 'center', gap: 10,
+          padding: '10px 12px', borderRadius: 10, border: 'none',
+          background: showNotif ? C.active : 'rgba(255,255,255,0.06)',
+          cursor: 'pointer', textAlign: 'left',
+        }}>
+          <span style={{ fontSize: 16 }}>🔔</span>
+          <span style={{ flex: 1, fontSize: 13, fontWeight: 500, color: C.textSub }}>알림</span>
+          {unread > 0 && (
+            <span style={{
+              fontSize: 10, fontWeight: 700,
+              background: '#EF4444', color: '#fff',
+              padding: '1px 6px', borderRadius: 9999,
+            }}>{unread}</span>
+          )}
+        </button>
+
+        {showNotif && (
+          <div style={{
+            position: 'absolute', bottom: '100%', left: 0, right: 0,
+            background: '#fff', borderRadius: 14, border: '1px solid #E8EAED',
+            boxShadow: '0 -8px 24px rgba(17,24,39,0.14)',
+            overflow: 'hidden', zIndex: 200, marginBottom: 4,
+            maxHeight: 320,
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 14px 8px', borderBottom: '1px solid #F4F5F7' }}>
+              <span style={{ fontSize: 12, fontWeight: 700, color: '#111827' }}>알림 {unread > 0 ? `(미읽음 ${unread})` : ''}</span>
+              <div style={{ display: 'flex', gap: 8 }}>
+                {unread > 0 && <button onClick={markAllRead} style={{ fontSize: 11, color: '#2563EB', background: 'none', border: 'none', cursor: 'pointer' }}>모두 읽음</button>}
+                {notifications.length > 0 && <button onClick={clear} style={{ fontSize: 11, color: '#9CA3AF', background: 'none', border: 'none', cursor: 'pointer' }}>지우기</button>}
+              </div>
+            </div>
+            <div style={{ overflowY: 'auto', maxHeight: 260 }}>
+              {notifications.length === 0 ? (
+                <p style={{ padding: '20px 14px', fontSize: 12, color: '#9CA3AF', textAlign: 'center' }}>알림이 없어요</p>
+              ) : notifications.map(n => (
+                <div key={n.id} onClick={() => markRead(n.id)} style={{
+                  padding: '10px 14px', borderBottom: '1px solid #F9FAFB', cursor: 'pointer',
+                  background: n.read ? '#fff' : '#EFF6FF',
+                }}
+                onMouseEnter={e => e.currentTarget.style.background = '#F4F5F7'}
+                onMouseLeave={e => e.currentTarget.style.background = n.read ? '#fff' : '#EFF6FF'}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <span style={{ fontSize: 14, flexShrink: 0 }}>{n.icon || '📢'}</span>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <p style={{ fontSize: 12, fontWeight: n.read ? 400 : 700, color: '#111827', marginBottom: 2 }}>{n.title}</p>
+                      {n.body && <p style={{ fontSize: 11, color: '#6B7280', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{n.body}</p>}
+                    </div>
+                    {!n.read && <div style={{ width: 6, height: 6, borderRadius: '50%', background: '#2563EB', flexShrink: 0 }} />}
+                  </div>
+                  <p style={{ fontSize: 10, color: '#9CA3AF', marginTop: 4, paddingLeft: 22 }}>
+                    {new Date(n.createdAt).toLocaleString('ko-KR', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                  </p>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
 
       {/* 현재 스프린트 카드 */}
       <div style={{ margin: '0 10px 10px', padding: 14, borderRadius: 12, background: C.bgDeep, border: `1px solid ${C.divider}` }}>

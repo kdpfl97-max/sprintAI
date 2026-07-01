@@ -78,11 +78,18 @@ function MemberForm({ initial = EMPTY_FORM, onSubmit, onCancel, title }) {
 }
 
 export default function TeamPage() {
-  const { members, addMember, updateMember, removeMember } = useTeamStore()
+  const { members, addMember, updateMember, removeMember, settings, regenerateCode, setDiscordWebhook } = useTeamStore()
   const { sprint } = useSprintStore()
-  const [showAdd, setShowAdd]   = useState(false)
-  const [editId, setEditId]     = useState(null)
-  const [deleteId, setDeleteId] = useState(null)
+  const [showAdd, setShowAdd]       = useState(false)
+  const [editId, setEditId]         = useState(null)
+  const [deleteId, setDeleteId]     = useState(null)
+  const [showInvite, setShowInvite] = useState(false)
+  const [copied, setCopied]         = useState(false)
+  const [webhookInput, setWebhookInput] = useState(settings.discordWebhook || '')
+
+  function copyCode() {
+    navigator.clipboard.writeText(settings.teamCode).then(() => { setCopied(true); setTimeout(() => setCopied(false), 2000) })
+  }
 
   function getMemberStats(member) {
     const myTasks = sprint.tasks.filter(t => t.member?.name === member.name)
@@ -100,7 +107,7 @@ export default function TeamPage() {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', flex: 1, overflow: 'hidden' }}>
       <Topbar title="팀 관리" subtitle={`총 ${members.length}명 · 스프린트 가용 시간 ${totalCapacity}시간`}>
-        <button onClick={() => { setShowAdd(true); setEditId(null) }} style={btnPrimary} className="btn-press">
+        <button onClick={() => setShowInvite(true)} style={btnPrimary} className="btn-press">
           + 팀원 초대
         </button>
       </Topbar>
@@ -234,6 +241,59 @@ export default function TeamPage() {
           )}
         </div>
       </div>
+
+      {/* 팀원 초대 모달 */}
+      {showInvite && (
+        <div onClick={() => setShowInvite(false)}
+             style={{ position: 'fixed', inset: 0, zIndex: 50, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(17,24,39,0.44)' }}>
+          <div onClick={e => e.stopPropagation()}
+               style={{ background: '#FFF', borderRadius: 20, padding: 28, width: 420, boxShadow: '0 0 20px rgba(0,0,0,0.25)', display: 'flex', flexDirection: 'column', gap: 20 }}>
+            <div>
+              <p style={{ fontSize: 16, fontWeight: 700, color: '#111827', marginBottom: 4 }}>팀원 초대하기</p>
+              <p style={{ fontSize: 12, color: '#9CA3AF' }}>아래 팀 코드를 팀원에게 공유하세요. 팀원은 앱 접속 후 코드를 입력해 팀에 합류할 수 있어요.</p>
+            </div>
+
+            {/* 팀 코드 */}
+            <div style={{ textAlign: 'center', padding: '20px', background: '#EFF6FF', borderRadius: 14, border: '1px solid #BFDBFE' }}>
+              <p style={{ fontSize: 11, fontWeight: 600, color: '#2563EB', marginBottom: 8, letterSpacing: '0.06em' }}>팀 코드</p>
+              <p style={{ fontSize: 32, fontWeight: 800, color: '#1D4ED8', letterSpacing: '0.08em', fontFamily: 'monospace', marginBottom: 12 }}>
+                {settings.teamCode}
+              </p>
+              <div style={{ display: 'flex', gap: 8, justifyContent: 'center' }}>
+                <button onClick={copyCode} style={{ ...btnPrimary, height: 36, fontSize: 12, padding: '0 16px' }}>
+                  {copied ? '✓ 복사됨' : '코드 복사'}
+                </button>
+                <button onClick={regenerateCode} style={{ ...btnTertiary, height: 36, fontSize: 12, padding: '0 14px' }}>
+                  🔄 재생성
+                </button>
+              </div>
+            </div>
+
+            {/* Discord 웹훅 설정 */}
+            <div>
+              <label style={labelStyle}>Discord 웹훅 URL (선택 — 알림 발송용)</label>
+              <div style={{ display: 'flex', gap: 8 }}>
+                <input
+                  type="url" style={{ ...inputStyle, flex: 1 }}
+                  placeholder="https://discord.com/api/webhooks/..."
+                  value={webhookInput}
+                  onChange={e => setWebhookInput(e.target.value)}
+                />
+                <button onClick={() => { setDiscordWebhook(webhookInput); setShowInvite(false) }}
+                  style={{ ...btnPrimary, height: 40, fontSize: 12, padding: '0 14px', flexShrink: 0 }}>저장</button>
+              </div>
+            </div>
+
+            {/* 팀원 직접 추가 */}
+            <div style={{ borderTop: '1px solid #F4F5F7', paddingTop: 16 }}>
+              <p style={{ fontSize: 12, color: '#9CA3AF', marginBottom: 10 }}>또는 PM이 직접 팀원을 추가할 수도 있어요</p>
+              <button onClick={() => { setShowInvite(false); setShowAdd(true); setEditId(null) }} style={{ ...btnTertiary, width: '100%', height: 40, fontSize: 13 }}>
+                + 직접 팀원 추가
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* 삭제 확인 모달 */}
       {deleteId && (
