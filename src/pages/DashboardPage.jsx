@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import Topbar from '../components/layout/Topbar'
 import { useSprintStore } from '../store/useSprintStore'
@@ -895,6 +895,16 @@ export default function DashboardPage() {
   const { push: pushNotif }               = useNotificationStore()
   const { settings, members: teamMembers } = useTeamStore()
   const [closeModal, setCloseModal]       = useState(false)
+  const [welcomeToast, setWelcomeToast]   = useState(null)
+
+  useEffect(() => {
+    const flag = sessionStorage.getItem('onboarding_done')
+    if (flag) {
+      sessionStorage.removeItem('onboarding_done')
+      setWelcomeToast(flag === 'pm' ? '팀이 준비됐어요! 팀원을 초대하고 첫 스프린트를 시작해보세요 🚀' : '환영해요! 담당 태스크를 확인해보세요 →')
+      setTimeout(() => setWelcomeToast(null), 4500)
+    }
+  }, [])
 
   function handleSendNotification(summary, extra) {
     pushNotif({ icon: '📢', title: 'PM 공지', body: summary + (extra ? '\n' + extra : '') })
@@ -947,6 +957,19 @@ export default function DashboardPage() {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', flex: 1, overflow: 'hidden' }}>
+
+      {welcomeToast && (
+        <div style={{
+          position: 'fixed', bottom: isMobile ? 76 : 24, left: '50%', transform: 'translateX(-50%)',
+          background: '#1D4ED8', color: '#fff', borderRadius: 12,
+          padding: '12px 20px', fontSize: 13, fontWeight: 600,
+          boxShadow: '0 8px 24px rgba(29,78,216,0.35)',
+          zIndex: 999, whiteSpace: 'nowrap', maxWidth: 'calc(100vw - 32px)',
+          animation: 'fadeSlideUp 0.3s ease',
+        }}>
+          {welcomeToast}
+        </div>
+      )}
 
       {closeModal && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(17,24,39,0.45)', zIndex: 200, display: 'flex', alignItems: 'center', justifyContent: 'center' }}

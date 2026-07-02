@@ -79,6 +79,7 @@ export default function OnboardingPage() {
     const member = joinWithCode(settings.teamCode, name.trim(), role, color)
     if (!member) { setCodeError('팀 참여에 실패했어요.'); return }
     login(member)
+    sessionStorage.setItem('onboarding_done', '1')
     navigate('/dashboard')
   }
 
@@ -196,10 +197,10 @@ export default function OnboardingPage() {
               </p>
             </div>
 
-            <button onClick={() => navigate('/team')} style={primaryBtn(true)}>
+            <button onClick={() => { sessionStorage.setItem('onboarding_done', 'pm'); navigate('/team') }} style={primaryBtn(true)}>
               🚀 팀 관리 페이지로 이동
             </button>
-            <button onClick={() => navigate('/dashboard')} style={{ ...primaryBtn(false), background: 'transparent', color: '#6B7280', marginTop: 8, cursor: 'pointer' }}>
+            <button onClick={() => { sessionStorage.setItem('onboarding_done', 'pm'); navigate('/dashboard') }} style={{ ...primaryBtn(false), background: 'transparent', color: '#6B7280', marginTop: 8, cursor: 'pointer' }}>
               대시보드 먼저 보기
             </button>
           </>

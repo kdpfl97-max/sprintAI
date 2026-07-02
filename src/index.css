@@ -1,6 +1,11 @@
 @import "tailwindcss";
 @import url('https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable.min.css');
 
+@keyframes fadeSlideUp {
+  from { opacity: 0; transform: translateX(-50%) translateY(12px); }
+  to   { opacity: 1; transform: translateX(-50%) translateY(0); }
+}
+
 :root {
   --primary:        #2563EB;
   --primary-strong: #1D4ED8;
