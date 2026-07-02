@@ -243,12 +243,42 @@ export default function OnboardingPage() {
               <span>✅</span>
               <span style={{ fontSize: 12, fontWeight: 600, color: '#059669' }}>팀 코드 확인 완료!</span>
             </div>
-            <p style={{ fontSize: 15, fontWeight: 700, color: '#111827', marginBottom: 4 }}>내 프로필 설정</p>
-            <p style={{ fontSize: 12, color: '#9CA3AF', marginBottom: 16 }}>팀원들에게 표시될 정보를 입력해요</p>
+
+            {/* 기존 팀원으로 빠르게 체험 */}
+            <p style={{ fontSize: 14, fontWeight: 700, color: '#111827', marginBottom: 4 }}>팀원으로 체험하기</p>
+            <p style={{ fontSize: 12, color: '#9CA3AF', marginBottom: 12 }}>기존 팀원을 선택하면 실제 데이터로 바로 둘러볼 수 있어요</p>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 20 }}>
+              {members.filter(m => m.role !== 'PM').map(m => (
+                <button key={m.id} onClick={() => { login(m); sessionStorage.setItem('onboarding_done', '1'); navigate('/dashboard') }} style={{
+                  display: 'flex', alignItems: 'center', gap: 12,
+                  padding: '12px 14px', borderRadius: 12, border: '1.5px solid #E8EAED',
+                  background: '#fff', cursor: 'pointer', textAlign: 'left',
+                }}
+                onMouseEnter={e => { e.currentTarget.style.borderColor = '#1D4ED8'; e.currentTarget.style.background = '#F0F7FF' }}
+                onMouseLeave={e => { e.currentTarget.style.borderColor = '#E8EAED'; e.currentTarget.style.background = '#fff' }}>
+                  <div style={{ width: 36, height: 36, borderRadius: '50%', background: m.color, color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, fontWeight: 700, flexShrink: 0 }}>
+                    {m.initials}
+                  </div>
+                  <div>
+                    <p style={{ fontSize: 13, fontWeight: 700, color: '#111827', marginBottom: 1 }}>{m.name}</p>
+                    <p style={{ fontSize: 11, color: '#9CA3AF' }}>{m.role}</p>
+                  </div>
+                  <span style={{ marginLeft: 'auto', fontSize: 11, color: '#1D4ED8', fontWeight: 600 }}>체험 →</span>
+                </button>
+              ))}
+            </div>
+
+            {/* 구분선 */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16 }}>
+              <div style={{ flex: 1, height: 1, background: '#E8EAED' }} />
+              <span style={{ fontSize: 11, color: '#9CA3AF' }}>또는 새 프로필로 직접 참여</span>
+              <div style={{ flex: 1, height: 1, background: '#E8EAED' }} />
+            </div>
+
             <div style={{ display: 'flex', flexDirection: 'column', gap: 14, marginBottom: 20 }}>
               <div>
                 <label style={{ fontSize: 12, fontWeight: 600, color: '#4B5563', display: 'block', marginBottom: 6 }}>이름 *</label>
-                <input style={inp} placeholder="이름을 입력하세요" value={name} onChange={e => setName(e.target.value)} autoFocus />
+                <input style={inp} placeholder="이름을 입력하세요" value={name} onChange={e => setName(e.target.value)} />
               </div>
               <div>
                 <label style={{ fontSize: 12, fontWeight: 600, color: '#4B5563', display: 'block', marginBottom: 6 }}>역할</label>
