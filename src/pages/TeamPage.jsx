@@ -78,13 +78,6 @@ function MemberForm({ initial = EMPTY_FORM, onSubmit, onCancel, title }) {
   )
 }
 
-const DesktopOnly = () => (
-  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%', gap: 12, padding: 32, textAlign: 'center' }}>
-    <span style={{ fontSize: 48 }}>🖥️</span>
-    <p style={{ fontSize: 18, fontWeight: 700, color: '#111827' }}>데스크탑에서 이용해주세요</p>
-    <p style={{ fontSize: 14, color: '#6B7280' }}>이 기능은 더 넓은 화면이 필요합니다.</p>
-  </div>
-)
 
 export default function TeamPage() {
   const isMobile = useIsMobile()
@@ -114,7 +107,6 @@ export default function TeamPage() {
   const totalTasks    = sprint.tasks.length
   const completionPct = totalTasks > 0 ? Math.round((doneCount / totalTasks) * 100) : 0
 
-  if (isMobile) return <DesktopOnly />
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', flex: 1, overflow: 'hidden' }}>
@@ -133,7 +125,7 @@ export default function TeamPage() {
         )}
 
         {/* 요약 지표 */}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 14 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: isMobile ? 'repeat(2,1fr)' : 'repeat(4,1fr)', gap: isMobile ? 10 : 14 }}>
           {[
             { label: '팀원 수',           value: members.length, unit: '명', sub: '전체 활성' },
             { label: '총 Capacity',       value: totalCapacity,  unit: 'h',  sub: '스프린트 기준' },
@@ -171,7 +163,7 @@ export default function TeamPage() {
               <div key={member.id} style={{ ...card, overflow: 'hidden' }}
                    onMouseEnter={e => e.currentTarget.style.borderColor = '#D1D5DB'}
                    onMouseLeave={e => e.currentTarget.style.borderColor = '#E8EAED'}>
-                <div style={{ padding: '16px 20px', display: 'flex', alignItems: 'center', gap: 16 }}>
+                <div style={{ padding: isMobile ? '14px 16px' : '16px 20px', display: 'flex', alignItems: isMobile ? 'flex-start' : 'center', flexDirection: isMobile ? 'column' : 'row', gap: isMobile ? 10 : 16 }}>
                   {/* 아바타 */}
                   <div style={{
                     width: 44, height: 44, borderRadius: '50%', flexShrink: 0,
@@ -193,18 +185,20 @@ export default function TeamPage() {
                   </div>
 
                   {/* 지표 */}
+                  <div style={{ display: 'flex', width: isMobile ? '100%' : 'auto', borderTop: isMobile ? '1px solid #E8EAED' : 'none', paddingTop: isMobile ? 10 : 0 }}>
                   {[
                     { label: 'Capacity', value: member.capacity, unit: 'h' },
                     { label: '태스크', value: `${stats.done}/${stats.total}`, unit: '' },
                     { label: '완료 작업량', value: stats.doneSp, unit: `/${stats.sp}`, valueColor: member.color },
                   ].map(({ label, value, unit, valueColor }) => (
-                    <div key={label} style={{ textAlign: 'center', padding: '0 16px', borderLeft: '1px solid #E8EAED' }}>
+                    <div key={label} style={{ textAlign: 'center', flex: isMobile ? 1 : 'none', padding: isMobile ? '0 8px' : '0 16px', borderLeft: '1px solid #E8EAED' }}>
                       <p style={{ fontSize: 11, color: '#9CA3AF', marginBottom: 4 }}>{label}</p>
-                      <p style={{ fontSize: 20, fontWeight: 800, color: valueColor || '#111827', lineHeight: 1 }}>
-                        {value}<span style={{ fontSize: 12, fontWeight: 400, color: '#9CA3AF' }}>{unit}</span>
+                      <p style={{ fontSize: isMobile ? 16 : 20, fontWeight: 800, color: valueColor || '#111827', lineHeight: 1 }}>
+                        {value}<span style={{ fontSize: 11, fontWeight: 400, color: '#9CA3AF' }}>{unit}</span>
                       </p>
                     </div>
                   ))}
+                  </div>
 
                   {/* 액션 */}
                   <div style={{ display: 'flex', gap: 6, paddingLeft: 16, borderLeft: '1px solid #E8EAED', flexShrink: 0 }}>

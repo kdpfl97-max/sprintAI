@@ -549,13 +549,6 @@ function suggestMembers(title, teamMembers, existingAssignees = []) {
   return scores.filter(s => s.score === max)
 }
 
-const DesktopOnly = () => (
-  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%', gap: 12, padding: 32, textAlign: 'center' }}>
-    <span style={{ fontSize: 48 }}>🖥️</span>
-    <p style={{ fontSize: 18, fontWeight: 700, color: '#111827' }}>데스크탑에서 이용해주세요</p>
-    <p style={{ fontSize: 14, color: '#6B7280' }}>이 기능은 더 넓은 화면이 필요합니다.</p>
-  </div>
-)
 
 export default function SprintBuilderPage() {
   const isMobile = useIsMobile()
@@ -720,7 +713,6 @@ export default function SprintBuilderPage() {
 
   const canGenerate = can.runAI && selected.size > 0 && meta.name.trim()
 
-  if (isMobile) return <DesktopOnly />
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', flex: 1, overflow: 'hidden' }}>
@@ -731,15 +723,15 @@ export default function SprintBuilderPage() {
         {can.deleteSprint && <button onClick={handleReset} style={btnTertiary}>초기화</button>}
       </Topbar>
 
-      <div style={{ flex: 1, overflowY: 'auto', background: '#F4F5F7', padding: '20px 24px 100px', display: 'flex', flexDirection: 'column', gap: 16 }}>
+      <div style={{ flex: 1, overflowY: 'auto', background: '#F4F5F7', padding: isMobile ? '14px 14px 100px' : '20px 24px 100px', display: 'flex', flexDirection: 'column', gap: 16 }}>
 
         {/* ── SETUP 단계 ── */}
         {phase === 'setup' && (<>
 
           {/* 1단계: 스프린트 기본 정보 (인라인) */}
-          <div style={{ ...card, padding: 20 }}>
+          <div style={{ ...card, padding: isMobile ? 16 : 20 }}>
             <p style={{ fontSize: 14, fontWeight: 700, color: '#111827', marginBottom: 16 }}>① 스프린트 기본 정보</p>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+            <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 12 }}>
               <div>
                 <label style={{ fontSize: 12, fontWeight: 600, color: '#374151', display: 'block', marginBottom: 6 }}>스프린트 이름 *</label>
                 <input style={inputStyle} value={meta.name} onChange={e => setMeta(p => ({ ...p, name: e.target.value }))} placeholder="예: Sprint 2 — 결제 기능" />
@@ -830,7 +822,7 @@ export default function SprintBuilderPage() {
                 ))}
               </div>
             </div>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12 }}>
+            <div style={{ display: 'grid', gridTemplateColumns: isMobile ? 'repeat(2, 1fr)' : 'repeat(4, 1fr)', gap: 12 }}>
               {teamMembers.map(m => {
                 const maxH = countDays(meta.startDate, meta.endDate, weekdayOnly) * 8 || m.total
                 const h = capacity[m.id] ?? maxH
@@ -955,7 +947,7 @@ export default function SprintBuilderPage() {
               })()}
 
               {/* 주차별 태스크 — overflow visible로 드롭다운 안 잘리게 */}
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+              <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 16 }}>
                 {[
                   { key: 'week1', label: '1주차', color: '#2563EB', chipBg: '#EFF6FF', chipBorder: '#BFDBFE' },
                   { key: 'week2', label: '2주차', color: '#8B5CF6', chipBg: '#F5F3FF', chipBorder: '#DDD6FE' },
@@ -980,7 +972,7 @@ export default function SprintBuilderPage() {
               {/* Workload 요약 */}
               <div style={{ ...card, padding: '18px 20px' }}>
                 <div style={{ fontSize: 13, fontWeight: 700, color: '#111827', marginBottom: 14 }}>팀원별 배정 작업 시간</div>
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12 }}>
+                <div style={{ display: 'grid', gridTemplateColumns: isMobile ? 'repeat(2, 1fr)' : 'repeat(4, 1fr)', gap: 12 }}>
                   {workload.map(m => {
                     const cap = capacity[m.id] ?? (countDays(meta.startDate, meta.endDate, weekdayOnly) * 8)
                     const over = m.sp > cap * 0.8
