@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { useIsMobile } from '../hooks/useIsMobile'
 import Topbar from '../components/layout/Topbar'
 import { useBacklogStore } from '../store/useBacklogStore'
 import { useSprintStore } from '../store/useSprintStore'
@@ -548,12 +549,21 @@ function suggestMembers(title, teamMembers, existingAssignees = []) {
   return scores.filter(s => s.score === max)
 }
 
+const DesktopOnly = () => (
+  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%', gap: 12, padding: 32, textAlign: 'center' }}>
+    <span style={{ fontSize: 48 }}>🖥️</span>
+    <p style={{ fontSize: 18, fontWeight: 700, color: '#111827' }}>데스크탑에서 이용해주세요</p>
+    <p style={{ fontSize: 14, color: '#6B7280' }}>이 기능은 더 넓은 화면이 필요합니다.</p>
+  </div>
+)
+
 export default function SprintBuilderPage() {
+  const isMobile = useIsMobile()
   const navigate = useNavigate()
   const { items, update: updateBacklog } = useBacklogStore()
   const { confirmSprint } = useSprintStore()
   const { can } = useAuthStore()
-  const { members } = useTeamStore()
+  const { members, updateMember } = useTeamStore()
   const { selected, toggle: planToggle, remove: removePlan, clear: clearPlan } = useSprintPlanStore()
 
   // 마감일 7일 이내 아이템 자동 추가 (완료/블로커 제외)
@@ -710,6 +720,8 @@ export default function SprintBuilderPage() {
 
   const canGenerate = can.runAI && selected.size > 0 && meta.name.trim()
 
+  if (isMobile) return <DesktopOnly />
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', flex: 1, overflow: 'hidden' }}>
       <Topbar
@@ -837,7 +849,11 @@ export default function SprintBuilderPage() {
                       <span style={{ fontWeight: 600, color: '#4B5563' }}>{h}시간 / {maxH}시간</span>
                     </div>
                     <input type="range" min="0" max={maxH} step="4" value={h}
-                      onChange={e => setCapacity(p => ({ ...p, [m.id]: Number(e.target.value) }))}
+                      onChange={e => {
+                        const v = Number(e.target.value)
+                        setCapacity(p => ({ ...p, [m.id]: v }))
+                        updateMember(m.id, { capacity: v })
+                      }}
                       style={{ width: '100%', accentColor: m.color, cursor: 'pointer' }} />
                   </div>
                 )
@@ -948,7 +964,7 @@ export default function SprintBuilderPage() {
                     <div style={{ padding: '14px 16px', borderBottom: '1px solid #F3F4F6', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                       <span style={{ fontSize: 14, fontWeight: 700, color: '#111827' }}>{label}</span>
                       <span style={{ fontSize: 12, fontWeight: 700, color, background: chipBg, padding: '2px 10px', borderRadius: 9999, border: `1px solid ${chipBorder}` }}>
-                        {draft[key].reduce((s, t) => s + (Number(t.estimatedHours) || 0), 0)}시간
+                        주당 {draft[key].reduce((s, t) => s + (Number(t.estimatedHours) || 0), 0)}h
                       </span>
                     </div>
                     <div style={{ padding: '14px 16px', display: 'flex', flexDirection: 'column', gap: 8, minHeight: 120 }}>

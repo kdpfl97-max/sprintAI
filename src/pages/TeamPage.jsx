@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import Topbar from '../components/layout/Topbar'
+import { useIsMobile } from '../hooks/useIsMobile'
 import { useTeamStore, ROLE_OPTIONS, COLOR_OPTIONS } from '../store/useTeamStore'
 import { useSprintStore } from '../store/useSprintStore'
 
@@ -77,7 +78,16 @@ function MemberForm({ initial = EMPTY_FORM, onSubmit, onCancel, title }) {
   )
 }
 
+const DesktopOnly = () => (
+  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%', gap: 12, padding: 32, textAlign: 'center' }}>
+    <span style={{ fontSize: 48 }}>🖥️</span>
+    <p style={{ fontSize: 18, fontWeight: 700, color: '#111827' }}>데스크탑에서 이용해주세요</p>
+    <p style={{ fontSize: 14, color: '#6B7280' }}>이 기능은 더 넓은 화면이 필요합니다.</p>
+  </div>
+)
+
 export default function TeamPage() {
+  const isMobile = useIsMobile()
   const { members, addMember, updateMember, removeMember, settings, regenerateCode, setDiscordWebhook } = useTeamStore()
   const { sprint } = useSprintStore()
   const [showAdd, setShowAdd]       = useState(false)
@@ -103,6 +113,8 @@ export default function TeamPage() {
   const doneCount     = sprint.tasks.filter(t => t.status === 'done').length
   const totalTasks    = sprint.tasks.length
   const completionPct = totalTasks > 0 ? Math.round((doneCount / totalTasks) * 100) : 0
+
+  if (isMobile) return <DesktopOnly />
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', flex: 1, overflow: 'hidden' }}>

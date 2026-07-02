@@ -7,6 +7,25 @@ import { useBacklogStore } from '../store/useBacklogStore'
 import { useNotificationStore } from '../store/useNotificationStore'
 import { useTeamStore } from '../store/useTeamStore'
 
+const ROLE_KEYWORDS = {
+  백엔드:    /api|서버|db|데이터베이스|인증|로그인|crud|저장|연동|스키마|마이그레이션|백엔드|backend/,
+  프론트:    /ui|화면|페이지|컴포넌트|버튼|레이아웃|뷰|렌더|표시|모달|폼|프론트|frontend/,
+  'AI/백엔드': /ai|알고리즘|추천|분석|모델|자동|예측|계획|초안|분해/,
+  디자인:    /디자인|아이콘|스타일|색상|대시보드|ux|ui 디자인/,
+}
+function suggestMembers(title, members) {
+  const t = title.toLowerCase()
+  const eligible = members.filter(m => m.role !== 'PM')
+  if (!eligible.length) return []
+  const scores = eligible.map(m => {
+    let score = 0
+    Object.entries(ROLE_KEYWORDS).forEach(([key, re]) => { if (m.role.includes(key) && re.test(t)) score += 3 })
+    return { ...m, score }
+  })
+  const max = Math.max(...scores.map(s => s.score))
+  return (max <= 0 ? [scores[0]] : scores.filter(s => s.score === max)).slice(0, 2)
+}
+
 const card = {
   background: '#FFFFFF',
   borderRadius: 16,
@@ -312,7 +331,7 @@ function GanttChart({ tasks, startDate, endDate }) {
 /* ─────────────────────────────────────────────
    PM 홈
 ───────────────────────────────────────────── */
-function PMHome({ currentUser, sprint, onSendNotification }) {
+function PMHome({ currentUser, sprint, onSendNotification, teamMembers = [], updateTask }) {
   const [expandedMember, setExpandedMember] = useState(null)
   const [activeTab, setActiveTab] = useState('현황')
   const [sendModal, setSendModal] = useState(false)
@@ -515,7 +534,8 @@ function PMHome({ currentUser, sprint, onSendNotification }) {
         <SectionTitle>팀원별 현황</SectionTitle>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
           {workload.map(({ member, tasks: mt, remainH, doneH: dH, total }) => {
-            const over = remainH > 40
+            const cap = teamMembers.find(m => m.name === member.name)?.capacity ?? 80
+            const over = remainH > cap
             const isExpanded = expandedMember === member.name
             const doneCnt = mt.filter(t => t.status === 'done').length
             return (
@@ -565,10 +585,29 @@ function PMHome({ currentUser, sprint, onSendNotification }) {
           })}
           {noAssignee.length > 0 && (
             <div style={{ padding: '10px 12px', borderRadius: 10, background: '#FFFBEB', border: '1px solid #FDE68A', marginTop: 4 }}>
-              <p style={{ fontSize: 12, fontWeight: 600, color: '#D97706', marginBottom: 4 }}>👤 미배정 태스크 {noAssignee.length}개</p>
-              {noAssignee.map(t => (
-                <p key={t.id} style={{ fontSize: 12, color: '#374151', paddingLeft: 4 }}>• {t.title}</p>
-              ))}
+              <p style={{ fontSize: 12, fontWeight: 600, color: '#D97706', marginBottom: 8 }}>👤 미배정 태스크 {noAssignee.length}개</p>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                {noAssignee.map(t => {
+                  const suggested = suggestMembers(t.title, teamMembers)
+                  return (
+                    <div key={t.id} style={{ display: 'flex', alignItems: 'center', gap: 8, background: '#fff', borderRadius: 8, padding: '7px 10px', border: '1px solid #FDE68A' }}>
+                      <span style={{ fontSize: 12, color: '#374151', flex: 1 }}>{t.title}</span>
+                      {suggested.length > 0 && (
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
+                          <span style={{ fontSize: 10, color: '#9CA3AF', fontWeight: 600 }}>AI 추천</span>
+                          {suggested.map(m => (
+                            <button key={m.id} title={`${m.name} (${m.role}) 배정`}
+                              onClick={() => updateTask(t.id, { member: { name: m.name, color: m.color, initials: m.initials || m.name[0] } })}
+                              style={{ width: 26, height: 26, borderRadius: '50%', background: m.color, color: '#fff', border: '2px solid #fff', boxShadow: '0 0 0 1.5px ' + m.color, fontSize: 10, fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                              {m.initials || m.name[0]}
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  )
+                })}
+              </div>
             </div>
           )}
         </div>
@@ -847,11 +886,11 @@ function MemberHome({ currentUser, sprint, moveTask }) {
 ───────────────────────────────────────────── */
 export default function DashboardPage() {
   const navigate = useNavigate()
-  const { sprint, closeSprint, moveTask } = useSprintStore()
+  const { sprint, closeSprint, moveTask, updateTask } = useSprintStore()
   const { currentUser, can }              = useAuthStore()
   const { add: addToBacklog }             = useBacklogStore()
   const { push: pushNotif }               = useNotificationStore()
-  const { settings }                      = useTeamStore()
+  const { settings, members: teamMembers } = useTeamStore()
   const [closeModal, setCloseModal]       = useState(false)
 
   function handleSendNotification(summary, extra) {
@@ -930,7 +969,7 @@ export default function DashboardPage() {
       </Topbar>
 
       {isPM ? (
-        <PMHome currentUser={currentUser} sprint={sprint} onSendNotification={handleSendNotification} />
+        <PMHome currentUser={currentUser} sprint={sprint} onSendNotification={handleSendNotification} teamMembers={teamMembers} updateTask={updateTask} />
       ) : currentUser ? (
         <MemberHome currentUser={currentUser} sprint={sprint} moveTask={moveTask} />
       ) : (
