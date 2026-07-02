@@ -218,110 +218,191 @@ function StatusDistBar({ tasks }) {
 
 // 간트 차트
 function GanttChart({ tasks, startDate, endDate }) {
-  const start = new Date(startDate.replace(/\./g, '-'))
-  const end   = new Date(endDate.replace(/\./g, '-'))
-  const today = new Date(); today.setHours(0, 0, 0, 0)
-  const totalDays = Math.max(1, Math.round((end - start) / 86400000))
+  const DAY_W   = 34
+  const ROW_H   = 40
+  const LABEL_W = 160
+  const HDR_H   = 48  // 월 행(24) + 일 행(24)
 
-  const STATUS_COLOR = { done: '#10B981', inprogress: '#2563EB', review: '#F59E0B', todo: '#D1D5DB' }
-  const LABEL_W = 220, ROW_H = 38, CHART_W = 560, PAD_TOP = 28
-  const W = LABEL_W + CHART_W
+  const toD = s => { const d = new Date(s.replace(/\./g, '-')); d.setHours(0,0,0,0); return d }
+  const start = toD(startDate)
+  const end   = toD(endDate)
+  const today = new Date(); today.setHours(0,0,0,0)
+  const totalDays = Math.max(1, Math.round((end - start) / 86400000) + 1)
 
-  function xOf(date) {
-    const d = new Date(date); d.setHours(0, 0, 0, 0)
-    return LABEL_W + Math.max(0, Math.min(1, (d - start) / ((end - start) || 1))) * CHART_W
-  }
-
-  const interval = totalDays > 21 ? 7 : totalDays > 10 ? 3 : 1
-  const markers = []
-  for (let i = 0; i <= totalDays; i += interval) {
+  // 날짜 배열
+  const days = Array.from({ length: totalDays }, (_, i) => {
     const d = new Date(start.getTime() + i * 86400000)
-    markers.push({ x: LABEL_W + (i / totalDays) * CHART_W, label: `${d.getMonth()+1}/${d.getDate()}` })
+    return { d, isToday: d.getTime() === today.getTime(), isWeekend: d.getDay() === 0 || d.getDay() === 6 }
+  })
+
+  // 월 그룹 (헤더 1행)
+  const months = []
+  days.forEach(({ d }) => {
+    const key = `${d.getFullYear()}-${d.getMonth()}`
+    if (!months.length || months[months.length - 1].key !== key)
+      months.push({ key, label: `${d.getMonth() + 1}월`, count: 1 })
+    else months[months.length - 1].count++
+  })
+
+  // 바 위치 계산
+  function barProps(task) {
+    const s = task.startDate ? toD(task.startDate) : start
+    const e = task.dueDate   ? toD(task.dueDate)   : end
+    const startOff = Math.max(0, Math.round((s - start) / 86400000))
+    const endOff   = Math.min(totalDays, Math.round((e - start) / 86400000) + 1)
+    return { left: startOff * DAY_W, width: Math.max(DAY_W, (endOff - startOff) * DAY_W) }
   }
 
-  const todayX = xOf(today)
-  const totalH = PAD_TOP + tasks.length * ROW_H + 8
+  const todayOff = today >= start && today <= end
+    ? Math.round((today - start) / 86400000)
+    : null
+
+  const STATUS_COLOR = { done: '#10B981', inprogress: '#2563EB', review: '#F59E0B', todo: '#94A3B8' }
+  const totalW = LABEL_W + totalDays * DAY_W
+
+  const stickyLabel = (bg, children) => ({
+    position: 'sticky', left: 0, zIndex: 5,
+    width: LABEL_W, minWidth: LABEL_W, flexShrink: 0,
+    background: bg, borderRight: '1px solid #E8EAED',
+    display: 'flex', alignItems: 'center',
+  })
 
   return (
-    <div style={{ overflowX: 'auto' }}>
-      <svg viewBox={`0 0 ${W} ${totalH}`} style={{ width: '100%', minWidth: W, height: totalH, display: 'block' }}>
-        {/* 날짜 마커 */}
-        {markers.map((m, i) => (
-          <g key={i}>
-            <line x1={m.x} y1={PAD_TOP - 8} x2={m.x} y2={totalH} stroke="#F3F4F6" strokeWidth="1"/>
-            <text x={m.x} y={PAD_TOP - 10} fontSize="10" fill="#9CA3AF" textAnchor="middle">{m.label}</text>
-          </g>
-        ))}
+    <div style={{ overflowX: 'auto', borderRadius: 8, border: '1px solid #E8EAED' }}>
+      <div style={{ minWidth: totalW, display: 'flex', flexDirection: 'column' }}>
 
-        {/* 오늘 라인 */}
-        {todayX >= LABEL_W && todayX <= W && (
-          <>
-            <line x1={todayX} y1={0} x2={todayX} y2={totalH} stroke="#EF4444" strokeWidth="1.5" strokeDasharray="4,2" opacity="0.7"/>
-            <text x={todayX} y={PAD_TOP - 10} fontSize="10" fill="#EF4444" textAnchor="middle" fontWeight="bold">오늘</text>
-          </>
-        )}
+        {/* ── 헤더 ── */}
+        <div style={{ display: 'flex', height: HDR_H, borderBottom: '2px solid #E8EAED', background: '#F9FAFB' }}>
+          {/* 좌측 sticky 헤더 */}
+          <div style={{ ...stickyLabel('#F9FAFB'), height: HDR_H, flexDirection: 'column', justifyContent: 'flex-end', padding: '0 12px 6px' }}>
+            <span style={{ fontSize: 11, fontWeight: 600, color: '#9CA3AF' }}>태스크</span>
+          </div>
 
-        {/* 헤더 구분선 */}
-        <line x1={0} y1={PAD_TOP - 2} x2={W} y2={PAD_TOP - 2} stroke="#E8EAED" strokeWidth="1"/>
+          {/* 날짜 헤더 열 */}
+          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+            {/* 월 행 */}
+            <div style={{ display: 'flex', height: 24, borderBottom: '1px solid #E8EAED' }}>
+              {months.map((m, i) => (
+                <div key={i} style={{
+                  width: m.count * DAY_W, flexShrink: 0,
+                  display: 'flex', alignItems: 'center', paddingLeft: 8,
+                  fontSize: 11, fontWeight: 700, color: '#374151',
+                  borderRight: '1px solid #E8EAED',
+                }}>{m.label}</div>
+              ))}
+            </div>
+            {/* 일 행 */}
+            <div style={{ display: 'flex', height: 24 }}>
+              {days.map(({ d, isToday, isWeekend }, i) => (
+                <div key={i} style={{
+                  width: DAY_W, flexShrink: 0,
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  fontSize: 10, fontWeight: isToday ? 800 : 400,
+                  color: isToday ? '#EF4444' : isWeekend ? '#CBD5E1' : '#64748B',
+                  background: isToday ? '#FEF2F2' : 'transparent',
+                  borderRight: '1px solid #F1F5F9',
+                }}>{d.getDate()}</div>
+              ))}
+            </div>
+          </div>
+        </div>
 
-        {/* 태스크 행 */}
+        {/* ── 태스크 행 ── */}
         {tasks.map((task, i) => {
-          const y = PAD_TOP + i * ROW_H
-          const color = STATUS_COLOR[task.status] || '#D1D5DB'
-          const barX1 = LABEL_W + 4
-          const barX2 = task.dueDate ? Math.min(xOf(new Date(task.dueDate)), LABEL_W + CHART_W - 4) : LABEL_W + CHART_W - 4
-          const barW = Math.max(6, barX2 - barX1)
-          const opacity = task.status === 'todo' ? 0.35 : 0.85
+          const color = STATUS_COLOR[task.status] || '#94A3B8'
+          const { left, width } = barProps(task)
+          const rowBg = i % 2 === 0 ? '#FFFFFF' : '#FAFAFA'
+          const isDone = task.status === 'done'
 
           return (
-            <g key={task.id}>
-              <rect x={0} y={y} width={W} height={ROW_H - 1} fill={i % 2 === 0 ? '#FAFAFA' : '#FFF'}/>
+            <div key={task.id} style={{ display: 'flex', height: ROW_H, borderBottom: '1px solid #F1F5F9' }}>
+              {/* 좌측 sticky 레이블 */}
+              <div style={{ ...stickyLabel(rowBg), height: ROW_H, gap: 8, padding: '0 10px', overflow: 'hidden' }}>
+                <div style={{
+                  width: 24, height: 24, borderRadius: '50%', flexShrink: 0,
+                  background: task.member?.color ?? '#E5E7EB',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  fontSize: 9, fontWeight: 700, color: '#fff',
+                }}>
+                  {task.member?.initials ?? '?'}
+                </div>
+                <div style={{ overflow: 'hidden', minWidth: 0 }}>
+                  <div style={{ fontSize: 12, fontWeight: 500, color: '#1E293B', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    {task.title}
+                  </div>
+                  {task.member && (
+                    <div style={{ fontSize: 10, color: '#94A3B8', marginTop: 1 }}>{task.member.name}</div>
+                  )}
+                </div>
+              </div>
 
-              {/* 담당자 아바타 */}
-              {task.member ? (
-                <>
-                  <circle cx={14} cy={y + ROW_H/2} r={10} fill={task.member.color}/>
-                  <text x={14} y={y + ROW_H/2 + 4} fontSize="9" fill="white" textAnchor="middle" fontWeight="bold">
-                    {task.member.initials}
-                  </text>
-                </>
-              ) : (
-                <circle cx={14} cy={y + ROW_H/2} r={10} fill="#E5E7EB"/>
-              )}
+              {/* 타임라인 영역 */}
+              <div style={{ flex: 1, position: 'relative', background: rowBg, overflow: 'hidden' }}>
+                {/* 일 구분선 + 오늘 열 하이라이트 */}
+                {days.map(({ isToday, isWeekend }, di) => (
+                  <div key={di} style={{
+                    position: 'absolute', left: di * DAY_W, top: 0,
+                    width: DAY_W, height: '100%',
+                    background: isToday ? 'rgba(239,68,68,0.06)' : isWeekend ? 'rgba(0,0,0,0.018)' : 'transparent',
+                    borderRight: '1px solid #F1F5F9',
+                    zIndex: 0,
+                  }}/>
+                ))}
 
-              {/* 태스크 제목 */}
-              <text x={30} y={y + ROW_H/2 + 4} fontSize="12" fill="#374151">
-                {task.title.length > 18 ? task.title.slice(0, 18) + '…' : task.title}
-              </text>
+                {/* 오늘 세로선 */}
+                {todayOff !== null && (
+                  <div style={{
+                    position: 'absolute', left: todayOff * DAY_W + DAY_W / 2 - 1,
+                    top: 0, width: 2, height: '100%',
+                    background: '#EF4444', opacity: 0.55, zIndex: 2,
+                  }}/>
+                )}
 
-              {/* 담당자 이름 (작게) */}
-              {task.member && (
-                <text x={30} y={y + ROW_H/2 + 14} fontSize="9" fill="#9CA3AF">
-                  {task.member.name}
-                </text>
-              )}
+                {/* 간트 바 */}
+                <div style={{
+                  position: 'absolute',
+                  left: left + 2, top: '50%', transform: 'translateY(-50%)',
+                  width: width - 4, height: 22,
+                  background: color,
+                  borderRadius: 6,
+                  opacity: isDone ? 1 : task.status === 'todo' ? 0.55 : 0.88,
+                  zIndex: 3,
+                  display: 'flex', alignItems: 'center',
+                  paddingLeft: 8, paddingRight: 6,
+                  overflow: 'hidden',
+                  boxShadow: '0 1px 3px rgba(0,0,0,0.12)',
+                }}>
+                  {isDone && <span style={{ fontSize: 10, color: '#fff', marginRight: 4 }}>✓</span>}
+                  {width > 56 && (
+                    <span style={{ fontSize: 10, fontWeight: 600, color: isDone || task.status === 'inprogress' || task.status === 'review' ? '#fff' : '#475569', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                      {task.title}
+                    </span>
+                  )}
+                </div>
 
-              {/* 간트 바 */}
-              <rect x={barX1} y={y + 8} width={barW} height={ROW_H - 18} fill={color} rx="3" opacity={opacity}/>
-
-              {/* 완료 표시 */}
-              {task.status === 'done' && (
-                <text x={barX1 + barW/2} y={y + ROW_H/2 + 4} fontSize="9" fill="white" textAnchor="middle" fontWeight="bold">✓</text>
-              )}
-            </g>
+                {/* 블로커 뱃지 */}
+                {task.blocker && (
+                  <div style={{
+                    position: 'absolute', left: left + width - 4, top: '50%', transform: 'translateY(-50%)',
+                    fontSize: 10, zIndex: 4, lineHeight: 1,
+                  }}>🔴</div>
+                )}
+              </div>
+            </div>
           )
         })}
-      </svg>
+      </div>
+
       {/* 범례 */}
-      <div style={{ display: 'flex', gap: 16, padding: '10px 4px 0', flexWrap: 'wrap' }}>
-        {[['done','#10B981','완료'], ['inprogress','#2563EB','진행 중'], ['review','#F59E0B','검토 중'], ['todo','#D1D5DB','예정']].map(([,c,l]) => (
+      <div style={{ display: 'flex', gap: 14, padding: '10px 12px', borderTop: '1px solid #E8EAED', flexWrap: 'wrap', background: '#F9FAFB' }}>
+        {[['#10B981','완료'], ['#2563EB','진행 중'], ['#F59E0B','검토 중'], ['#94A3B8','예정']].map(([c, l]) => (
           <div key={l} style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
             <div style={{ width: 12, height: 8, borderRadius: 2, background: c }}/>
             <span style={{ fontSize: 11, color: '#6B7280' }}>{l}</span>
           </div>
         ))}
         <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
-          <div style={{ width: 12, height: 2, background: '#EF4444' }}/>
+          <div style={{ width: 2, height: 12, background: '#EF4444', opacity: 0.6 }}/>
           <span style={{ fontSize: 11, color: '#6B7280' }}>오늘</span>
         </div>
       </div>

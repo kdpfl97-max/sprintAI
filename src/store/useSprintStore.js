@@ -5,23 +5,25 @@ const STORAGE_KEY = 'sprintai_sprint'
 // 기본 스프린트 데이터 (빌더에서 확정하기 전 기본값)
 const DEFAULT_SPRINT = {
   name: 'Sprint 1 — 핵심 AI 기능',
+  status: 'active',
+  startedAt: '2026-07-01T09:00:00.000Z',
   startDate: '2026.07.01',
-  endDate: '2026.06.24', // ponytail: 오늘 날짜로 설정해 종료 배너 즉시 확인 가능
+  endDate: '2026.07.14',
   tasks: [
-    { id: 't1',  title: '구글 소셜 로그인',             priority: 'Must',   estimatedHours: 8,  status: 'done',       member: { name: '박준혁', color: '#2E75B6', initials: '박' }, progress: 100, dueDate: null, blocker: null },
-    { id: 't2',  title: '팀 생성 API',                  priority: 'Must',   estimatedHours: 8,  status: 'done',       member: { name: '박준혁', color: '#2E75B6', initials: '박' }, progress: 100, dueDate: null, blocker: null },
-    { id: 't3',  title: '팀 초대 이메일 발송',           priority: 'Must',   estimatedHours: 4,  status: 'done',       member: { name: '박준혁', color: '#2E75B6', initials: '박' }, progress: 100, dueDate: null, blocker: null },
-    { id: 't4',  title: 'DB 스키마 설계',                priority: 'Must',   estimatedHours: 6,  status: 'done',       member: { name: '이민수', color: '#8B5CF6', initials: '이' }, progress: 100, dueDate: null, blocker: null },
-    { id: 't5',  title: '카카오 로그인 연동',             priority: 'Must',   estimatedHours: 4,  status: 'done',       member: { name: '박준혁', color: '#2E75B6', initials: '박' }, progress: 100, dueDate: null, blocker: null },
-    { id: 't6',  title: '전체 할 일 CRUD — API 개발',   priority: 'Must',   estimatedHours: 10, status: 'inprogress', member: { name: '박준혁', color: '#2E75B6', initials: '박' }, progress: 70,  dueDate: '2026-07-05', blocker: null },
-    { id: 't7',  title: '전체 할 일 CRUD — 프론트 UI',  priority: 'Must',   estimatedHours: 6,  status: 'inprogress', member: { name: '김서연', color: '#22C55E', initials: '김' }, progress: 50,  dueDate: '2026-07-05', blocker: 't6' },
-    { id: 't8',  title: '스프린트 화면 디자인 시안',      priority: 'Must',   estimatedHours: 6,  status: 'inprogress', member: { name: '최지은', color: '#F59E0B', initials: '최' }, progress: 80,  dueDate: '2026-07-04', blocker: null },
-    { id: 't9',  title: 'Capacity 입력 화면 구현',       priority: 'Must',   estimatedHours: 8,  status: 'todo',       member: { name: '김서연', color: '#22C55E', initials: '김' }, progress: 0,   dueDate: '2026-07-08', blocker: 't7' },
-    { id: 't10', title: 'AI 계획 초안 알고리즘',          priority: 'Must',   estimatedHours: 20, status: 'todo',       member: { name: '이민수', color: '#8B5CF6', initials: '이' }, progress: 0,   dueDate: '2026-07-10', blocker: null },
-    { id: 't11', title: 'AI 계획 초안 UI 연동',           priority: 'Must',   estimatedHours: 8,  status: 'todo',       member: { name: '김서연', color: '#22C55E', initials: '김' }, progress: 0,   dueDate: '2026-07-12', blocker: 't10' },
-    { id: 't12', title: '랜딩 페이지 디자인',             priority: 'Should', estimatedHours: 8,  status: 'todo',       member: { name: '최지은', color: '#F59E0B', initials: '최' }, progress: 0,   dueDate: null, blocker: null },
-    { id: 't13', title: 'AI 태스크 분해 API 연동',        priority: 'Must',   estimatedHours: 12, status: 'inprogress', member: { name: '이민수', color: '#8B5CF6', initials: '이' }, progress: 0,   dueDate: '2026-07-08', blocker: null },
-    { id: 't14', title: '스프린트 확정 화면 구현',         priority: 'Must',   estimatedHours: 8,  status: 'inprogress', member: { name: '김서연', color: '#22C55E', initials: '김' }, progress: 0,   dueDate: '2026-07-08', blocker: 't9' },
+    { id: 't1',  title: '구글 소셜 로그인',             priority: 'Must',   estimatedHours: 8,  status: 'done',       member: { name: '박준혁', color: '#2E75B6', initials: '박' }, progress: 100, startDate: '2026-07-01', dueDate: '2026-07-02', blocker: null },
+    { id: 't2',  title: '팀 생성 API',                  priority: 'Must',   estimatedHours: 8,  status: 'done',       member: { name: '박준혁', color: '#2E75B6', initials: '박' }, progress: 100, startDate: '2026-07-01', dueDate: '2026-07-03', blocker: null },
+    { id: 't3',  title: '팀 초대 이메일 발송',           priority: 'Must',   estimatedHours: 4,  status: 'done',       member: { name: '박준혁', color: '#2E75B6', initials: '박' }, progress: 100, startDate: '2026-07-02', dueDate: '2026-07-03', blocker: null },
+    { id: 't4',  title: 'DB 스키마 설계',                priority: 'Must',   estimatedHours: 6,  status: 'done',       member: { name: '이민수', color: '#8B5CF6', initials: '이' }, progress: 100, startDate: '2026-07-01', dueDate: '2026-07-02', blocker: null },
+    { id: 't5',  title: '카카오 로그인 연동',             priority: 'Must',   estimatedHours: 4,  status: 'done',       member: { name: '박준혁', color: '#2E75B6', initials: '박' }, progress: 100, startDate: '2026-07-03', dueDate: '2026-07-04', blocker: null },
+    { id: 't6',  title: '전체 할 일 CRUD — API 개발',   priority: 'Must',   estimatedHours: 10, status: 'inprogress', member: { name: '박준혁', color: '#2E75B6', initials: '박' }, progress: 70,  startDate: '2026-07-01', dueDate: '2026-07-05', blocker: null },
+    { id: 't7',  title: '전체 할 일 CRUD — 프론트 UI',  priority: 'Must',   estimatedHours: 6,  status: 'inprogress', member: { name: '김서연', color: '#22C55E', initials: '김' }, progress: 50,  startDate: '2026-07-02', dueDate: '2026-07-05', blocker: 't6' },
+    { id: 't8',  title: '스프린트 화면 디자인 시안',      priority: 'Must',   estimatedHours: 6,  status: 'inprogress', member: { name: '최지은', color: '#F59E0B', initials: '최' }, progress: 80,  startDate: '2026-07-01', dueDate: '2026-07-04', blocker: null },
+    { id: 't9',  title: 'Capacity 입력 화면 구현',       priority: 'Must',   estimatedHours: 8,  status: 'todo',       member: { name: '김서연', color: '#22C55E', initials: '김' }, progress: 0,   startDate: '2026-07-06', dueDate: '2026-07-08', blocker: 't7' },
+    { id: 't10', title: 'AI 계획 초안 알고리즘',          priority: 'Must',   estimatedHours: 20, status: 'todo',       member: { name: '이민수', color: '#8B5CF6', initials: '이' }, progress: 0,   startDate: '2026-07-05', dueDate: '2026-07-10', blocker: null },
+    { id: 't11', title: 'AI 계획 초안 UI 연동',           priority: 'Must',   estimatedHours: 8,  status: 'todo',       member: { name: '김서연', color: '#22C55E', initials: '김' }, progress: 0,   startDate: '2026-07-10', dueDate: '2026-07-12', blocker: 't10' },
+    { id: 't12', title: '랜딩 페이지 디자인',             priority: 'Should', estimatedHours: 8,  status: 'todo',       member: { name: '최지은', color: '#F59E0B', initials: '최' }, progress: 0,   startDate: '2026-07-08', dueDate: '2026-07-14', blocker: null },
+    { id: 't13', title: 'AI 태스크 분해 API 연동',        priority: 'Must',   estimatedHours: 12, status: 'inprogress', member: { name: '이민수', color: '#8B5CF6', initials: '이' }, progress: 0,   startDate: '2026-07-03', dueDate: '2026-07-08', blocker: null },
+    { id: 't14', title: '스프린트 확정 화면 구현',         priority: 'Must',   estimatedHours: 8,  status: 'inprogress', member: { name: '김서연', color: '#22C55E', initials: '김' }, progress: 0,   startDate: '2026-07-07', dueDate: '2026-07-08', blocker: 't9' },
   ],
 }
 
@@ -51,6 +53,7 @@ export function useSprintStore() {
       status: 'todo',
       member: t.member,
       progress: 0,
+      startDate: meta.startDate || null,
       dueDate: null,
       blocker: null,
     }))
