@@ -2,6 +2,7 @@ import { useState } from 'react'
 import Topbar from '../components/layout/Topbar'
 import { useSprintStore } from '../store/useSprintStore'
 import { useAuthStore } from '../store/useAuthStore'
+import { useIsMobile } from '../hooks/useIsMobile'
 
 const PRIORITY_STYLE = {
   Must:    { bg: '#FEE2E2', color: '#DC2626', border: '#FECACA' },
@@ -275,8 +276,10 @@ function TaskCard({ task, allTasks, onMove, onProgressChange, onNoteChange, onOu
 export default function BoardPage() {
   const { sprint, moveTask, updateProgress, updateNote, updateTask } = useSprintStore()
   const { currentUser } = useAuthStore()
+  const isMobile = useIsMobile()
   const isPM = currentUser?.role === 'PM'
   const [showAll, setShowAll] = useState(() => currentUser?.role === 'PM')
+  const [mobileCol, setMobileCol] = useState('todo')
 
   function handleOutputLink(taskId, link) {
     updateTask(taskId, { outputLink: link })
@@ -331,7 +334,7 @@ export default function BoardPage() {
     <div style={{ display: 'flex', flexDirection: 'column', flex: 1, overflow: 'hidden' }}>
       <Topbar title="칸반 보드" subtitle={sprint.name}>
         {blockerCount > 0 && (
-          <span style={{ fontSize: 11, fontWeight: 700, color: '#DC2626', background: '#FEE2E2', border: '1px solid #FECACA', padding: '4px 10px', borderRadius: 9999 }}>
+          <span style={{ fontSize: 11, fontWeight: 700, color: '#DC2626', background: '#FEE2E2', border: '1px solid #FECACA', padding: '4px 10px', borderRadius: 9999, whiteSpace: 'nowrap' }}>
             🔴 블로커 {blockerCount}개
           </span>
         )}
@@ -340,98 +343,131 @@ export default function BoardPage() {
           background: showAll ? '#F4F5F7' : '#EFF6FF',
           color:      showAll ? '#4B5563' : '#2563EB',
           borderColor: showAll ? '#E8EAED' : '#BFDBFE',
+          whiteSpace: 'nowrap',
         }} className="btn-press-soft">
           {showAll ? '내 업무만' : '전체 보기'}
         </button>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 16, fontSize: 12, color: '#6B7280' }}>
-          <span>{sprint.startDate} ~ {sprint.endDate}</span>
+        {!isMobile && (
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <div style={{ width: 96, height: 4, background: '#E8EAED', borderRadius: 2, overflow: 'hidden' }}>
-              <div style={{ height: '100%', background: '#2563EB', borderRadius: 2, width: `${pct}%`, transition: 'width 0.5s' }} />
+            <div style={{ width: 80, height: 4, background: '#E8EAED', borderRadius: 2, overflow: 'hidden' }}>
+              <div style={{ height: '100%', background: '#2563EB', borderRadius: 2, width: `${pct}%` }} />
             </div>
-            <span style={{ fontWeight: 700, color: '#2563EB' }}>{pct}%</span>
+            <span style={{ fontSize: 12, fontWeight: 700, color: '#2563EB' }}>{pct}%</span>
+            <span style={{ fontSize: 12, color: '#9CA3AF' }}>{done.length}/{visibleTasks.length}</span>
           </div>
-          <span>{done.length}/{visibleTasks.length} 완료</span>
-        </div>
+        )}
       </Topbar>
 
-      {/* 통계 바 */}
-      <div style={{
-        borderBottom: '1px solid #E8EAED', background: '#FFFFFF',
-        padding: '10px 24px', display: 'flex', alignItems: 'center', gap: 24, flexShrink: 0,
-      }}>
-        {COLUMNS.map(col => {
-          const tasks = colData[col.id]
-          const hours = tasks.reduce((s, t) => s + (t.estimatedHours || 0), 0)
-          return (
-            <div key={col.id} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              <div style={{ width: 8, height: 8, borderRadius: '50%', background: col.color }} />
-              <span style={{ fontSize: 12, color: '#6B7280' }}>{col.label}</span>
-              <span style={{ fontSize: 12, fontWeight: 700, color: '#111827' }}>{tasks.length}개</span>
-              {hours > 0 && <span style={{ fontSize: 12, color: '#9CA3AF', fontWeight: 600 }}>{hours}시간</span>}
-            </div>
-          )
-        })}
-        <div style={{ marginLeft: 'auto', fontSize: 12, color: '#9CA3AF' }}>
-          총 <strong style={{ color: '#1F2937' }}>{totalH}시간</strong> 중{' '}
-          <strong style={{ color: '#10B981' }}>{doneH}시간</strong> 완료
+      {/* 통계 바 — 모바일: 탭 전환, 데스크탑: 가로 통계 */}
+      {isMobile ? (
+        <div style={{ display: 'flex', background: '#fff', borderBottom: '1px solid #E8EAED', flexShrink: 0 }}>
+          {COLUMNS.map(col => {
+            const isActive = mobileCol === col.id
+            return (
+              <button key={col.id} onClick={() => setMobileCol(col.id)} style={{
+                flex: 1, padding: '12px 8px', border: 'none', cursor: 'pointer',
+                background: isActive ? col.bg : '#fff',
+                borderBottom: isActive ? `2px solid ${col.color}` : '2px solid transparent',
+                display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2,
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+                  <div style={{ width: 7, height: 7, borderRadius: '50%', background: col.color }} />
+                  <span style={{ fontSize: 12, fontWeight: 700, color: isActive ? '#111827' : '#9CA3AF' }}>{col.label}</span>
+                </div>
+                <span style={{ fontSize: 18, fontWeight: 800, color: isActive ? col.color : '#6B7280', lineHeight: 1 }}>
+                  {colData[col.id].length}
+                </span>
+              </button>
+            )
+          })}
         </div>
-      </div>
+      ) : (
+        <div style={{ borderBottom: '1px solid #E8EAED', background: '#FFFFFF', padding: '10px 24px', display: 'flex', alignItems: 'center', gap: 24, flexShrink: 0 }}>
+          {COLUMNS.map(col => {
+            const tasks = colData[col.id]
+            const hours = tasks.reduce((s, t) => s + (t.estimatedHours || 0), 0)
+            return (
+              <div key={col.id} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <div style={{ width: 8, height: 8, borderRadius: '50%', background: col.color }} />
+                <span style={{ fontSize: 12, color: '#6B7280' }}>{col.label}</span>
+                <span style={{ fontSize: 12, fontWeight: 700, color: '#111827' }}>{tasks.length}개</span>
+                {hours > 0 && <span style={{ fontSize: 12, color: '#9CA3AF', fontWeight: 600 }}>{hours}시간</span>}
+              </div>
+            )
+          })}
+          <div style={{ marginLeft: 'auto', fontSize: 12, color: '#9CA3AF' }}>
+            총 <strong style={{ color: '#1F2937' }}>{totalH}시간</strong> 중{' '}
+            <strong style={{ color: '#10B981' }}>{doneH}시간</strong> 완료
+          </div>
+        </div>
+      )}
 
       {/* 칸반 컬럼 */}
-      <div style={{ display: 'flex', flex: 1, overflow: 'hidden', minHeight: 0 }}>
-        {COLUMNS.map((col, idx) => {
-          const tasks = colData[col.id]
-          return (
-            <div key={col.id} style={{
-              display: 'flex', flexDirection: 'column', flex: 1, overflow: 'hidden',
-              borderRight: idx < COLUMNS.length - 1 ? '1px solid #E8EAED' : 'none',
-              background: col.bg,
-            }}>
-              {/* 컬럼 헤더 */}
-              <div style={{
-                padding: '12px 16px', borderBottom: '1px solid #E8EAED',
-                background: 'rgba(255,255,255,0.8)', flexShrink: 0,
-                display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-              }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                  <div style={{ width: 8, height: 8, borderRadius: '50%', background: col.color }} />
-                  <span style={{ fontSize: 13, fontWeight: 600, color: '#111827' }}>{col.label}</span>
-                  <span style={{
-                    fontSize: 11, fontWeight: 700, padding: '1px 7px', borderRadius: 9999,
-                    background: col.color, color: 'white',
-                  }}>{tasks.length}</span>
+      {isMobile ? (
+        // 모바일: 선택된 열만 표시
+        <div style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+          {COLUMNS.filter(col => col.id === mobileCol).map(col => {
+            const tasks = colData[col.id]
+            return (
+              <div key={col.id} style={{ flex: 1, overflow: 'hidden', background: col.bg, display: 'flex', flexDirection: 'column' }}>
+                <div style={{ flex: 1, overflowY: 'auto', padding: '12px 16px', display: 'flex', flexDirection: 'column', gap: 10 }}>
+                  {tasks.length === 0 && (
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: 120, fontSize: 13, color: '#9CA3AF', border: '1.5px dashed #E8EAED', borderRadius: 14 }}>
+                      업무 없음
+                    </div>
+                  )}
+                  {tasks.map(task => (
+                    <TaskCard key={task.id} task={task} allTasks={allTasks}
+                      onMove={moveTask} onProgressChange={updateProgress}
+                      onNoteChange={updateNote} onOutputLink={handleOutputLink}
+                      isOwner={isPM || task.member?.name === currentUser?.name}
+                    />
+                  ))}
                 </div>
-                <span style={{ fontSize: 11, fontWeight: 600, color: '#9CA3AF' }}>
-                  {tasks.reduce((s, t) => s + (t.estimatedHours || 0), 0)}시간
-                </span>
               </div>
-
-              {/* 카드 목록 */}
-              <div style={{ flex: 1, overflowY: 'auto', padding: '12px 12px', display: 'flex', flexDirection: 'column', gap: 8 }}>
-                {tasks.length === 0 && (
-                  <div style={{
-                    display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    height: 80, fontSize: 12, color: '#9CA3AF',
-                    border: '1.5px dashed #E8EAED', borderRadius: 12, margin: '4px 0',
-                  }}>
-                    업무 없음
+            )
+          })}
+        </div>
+      ) : (
+        // 데스크탑: 3열 나란히
+        <div style={{ display: 'flex', flex: 1, overflow: 'hidden', minHeight: 0 }}>
+          {COLUMNS.map((col, idx) => {
+            const tasks = colData[col.id]
+            return (
+              <div key={col.id} style={{
+                display: 'flex', flexDirection: 'column', flex: 1, overflow: 'hidden',
+                borderRight: idx < COLUMNS.length - 1 ? '1px solid #E8EAED' : 'none',
+                background: col.bg,
+              }}>
+                <div style={{ padding: '12px 16px', borderBottom: '1px solid #E8EAED', background: 'rgba(255,255,255,0.8)', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <div style={{ width: 8, height: 8, borderRadius: '50%', background: col.color }} />
+                    <span style={{ fontSize: 13, fontWeight: 600, color: '#111827' }}>{col.label}</span>
+                    <span style={{ fontSize: 11, fontWeight: 700, padding: '1px 7px', borderRadius: 9999, background: col.color, color: 'white' }}>{tasks.length}</span>
                   </div>
-                )}
-                {tasks.map(task => (
-                  <TaskCard key={task.id} task={task} allTasks={allTasks}
-                    onMove={moveTask}
-                    onProgressChange={updateProgress}
-                    onNoteChange={updateNote}
-                    onOutputLink={handleOutputLink}
-                    isOwner={isPM || task.member?.name === currentUser?.name}
-                  />
-                ))}
+                  <span style={{ fontSize: 11, fontWeight: 600, color: '#9CA3AF' }}>
+                    {tasks.reduce((s, t) => s + (t.estimatedHours || 0), 0)}시간
+                  </span>
+                </div>
+                <div style={{ flex: 1, overflowY: 'auto', padding: '12px', display: 'flex', flexDirection: 'column', gap: 8 }}>
+                  {tasks.length === 0 && (
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: 80, fontSize: 12, color: '#9CA3AF', border: '1.5px dashed #E8EAED', borderRadius: 12, margin: '4px 0' }}>
+                      업무 없음
+                    </div>
+                  )}
+                  {tasks.map(task => (
+                    <TaskCard key={task.id} task={task} allTasks={allTasks}
+                      onMove={moveTask} onProgressChange={updateProgress}
+                      onNoteChange={updateNote} onOutputLink={handleOutputLink}
+                      isOwner={isPM || task.member?.name === currentUser?.name}
+                    />
+                  ))}
+                </div>
               </div>
-            </div>
-          )
-        })}
-      </div>
+            )
+          })}
+        </div>
+      )}
     </div>
   )
 }

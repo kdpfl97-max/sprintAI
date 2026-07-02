@@ -171,7 +171,7 @@ export default function CapturePage() {
           <p style={{ fontSize: 16, fontWeight: 700, color: '#111827' }}>팀원 선택이 필요해요</p>
           <p style={{ fontSize: 13, color: '#9CA3AF', textAlign: 'center', lineHeight: '22px' }}>
             아이디어 캡처는 개인 기록이에요.<br />
-            왼쪽 사이드바에서 팀원을 선택하면 바로 사용할 수 있어요.
+            아래 탭의 <strong style={{ color: '#374151' }}>프로필</strong>에서 팀원을 선택하면 바로 사용할 수 있어요.
           </p>
         </div>
       </div>

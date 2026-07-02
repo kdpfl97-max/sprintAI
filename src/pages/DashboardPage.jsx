@@ -6,6 +6,7 @@ import { useAuthStore } from '../store/useAuthStore'
 import { useBacklogStore } from '../store/useBacklogStore'
 import { useNotificationStore } from '../store/useNotificationStore'
 import { useTeamStore } from '../store/useTeamStore'
+import { useIsMobile } from '../hooks/useIsMobile'
 
 const ROLE_KEYWORDS = {
   백엔드:    /api|서버|db|데이터베이스|인증|로그인|crud|저장|연동|스키마|마이그레이션|백엔드|backend/,
@@ -331,7 +332,7 @@ function GanttChart({ tasks, startDate, endDate }) {
 /* ─────────────────────────────────────────────
    PM 홈
 ───────────────────────────────────────────── */
-function PMHome({ currentUser, sprint, onSendNotification, teamMembers = [], updateTask }) {
+function PMHome({ currentUser, sprint, onSendNotification, teamMembers = [], updateTask, isMobile }) {
   const [expandedMember, setExpandedMember] = useState(null)
   const [activeTab, setActiveTab] = useState('현황')
   const [sendModal, setSendModal] = useState(false)
@@ -417,7 +418,7 @@ function PMHome({ currentUser, sprint, onSendNotification, teamMembers = [], upd
   }
 
   return (
-    <div style={{ flex: 1, overflowY: 'auto', background: '#F4F5F7', padding: '20px 24px', display: 'flex', flexDirection: 'column', gap: 16 }}>
+    <div style={{ flex: 1, overflowY: 'auto', background: '#F4F5F7', padding: isMobile ? '14px 16px' : '20px 24px', display: 'flex', flexDirection: 'column', gap: 16 }}>
 
       {/* 알림 발송 모달 */}
       {sendModal && (
@@ -461,7 +462,7 @@ function PMHome({ currentUser, sprint, onSendNotification, teamMembers = [], upd
       )}
 
       {/* 탭 + 알림 버튼 */}
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8 }}>
         <div style={{ display: 'flex', gap: 4, background: '#E8EAED', borderRadius: 10, padding: 3 }}>
           {['현황', '간트'].map(tab => (
             <button key={tab} onClick={() => setActiveTab(tab)} style={{
@@ -473,9 +474,10 @@ function PMHome({ currentUser, sprint, onSendNotification, teamMembers = [], upd
           ))}
         </div>
         <button onClick={() => setSendModal(true)} style={{
-          padding: '0 16px', height: 36, borderRadius: 10, border: '1px solid #BFDBFE',
-          background: '#EFF6FF', color: '#2563EB', fontSize: 13, fontWeight: 600, cursor: 'pointer',
-        }}>📢 팀에게 알림 보내기</button>
+          padding: '0 14px', height: 36, borderRadius: 10, border: '1px solid #BFDBFE',
+          background: '#EFF6FF', color: '#2563EB', fontSize: isMobile ? 12 : 13, fontWeight: 600, cursor: 'pointer',
+          whiteSpace: 'nowrap',
+        }}>📢 {isMobile ? '알림 보내기' : '팀에게 알림 보내기'}</button>
       </div>
 
       {/* 간트 뷰 */}
@@ -489,19 +491,19 @@ function PMHome({ currentUser, sprint, onSendNotification, teamMembers = [], upd
       {activeTab === '현황' && <>
 
       {/* 핵심 지표 4개 */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: isMobile ? 'repeat(2, 1fr)' : 'repeat(4, 1fr)', gap: isMobile ? 10 : 12 }}>
         {[
           { label: '완료율', value: `${pct}%`, sub: `${done.length}/${tasks.length}개 완료`, color: pct >= 70 ? '#10B981' : '#111827' },
           { label: '진행 중', value: inpro.length, sub: `예정 ${todo.length}개 대기`, color: inpro.length > 0 ? '#2563EB' : '#9CA3AF', unit: '개' },
           { label: '남은 기간', value: daysLeft > 0 ? `${daysLeft}일` : daysLeft === 0 ? 'D-Day' : '종료', sub: `${daysLabel} · ${sprint.endDate}`, color: daysLeft <= 3 ? '#EF4444' : '#111827' },
           { label: '확인 필요', value: alerts.length, sub: alerts.length > 0 ? '아래에서 확인' : '이상 없음 ✓', color: alerts.length > 0 ? '#D97706' : '#10B981', unit: '건' },
         ].map(({ label, value, sub, color, unit }) => (
-          <div key={label} style={{ ...card, padding: '16px 18px' }}>
-            <p style={{ fontSize: 11, fontWeight: 700, color: '#9CA3AF', textTransform: 'uppercase', marginBottom: 8, letterSpacing: '0.05em' }}>{label}</p>
-            <p style={{ fontSize: 24, fontWeight: 800, color, lineHeight: 1 }}>
-              {value}{unit && <span style={{ fontSize: 13, fontWeight: 500, color: '#9CA3AF' }}>{unit}</span>}
+          <div key={label} style={{ ...card, padding: isMobile ? '12px 14px' : '16px 18px' }}>
+            <p style={{ fontSize: 11, fontWeight: 700, color: '#9CA3AF', textTransform: 'uppercase', marginBottom: 6, letterSpacing: '0.04em' }}>{label}</p>
+            <p style={{ fontSize: isMobile ? 22 : 24, fontWeight: 800, color, lineHeight: 1 }}>
+              {value}{unit && <span style={{ fontSize: 12, fontWeight: 500, color: '#9CA3AF' }}>{unit}</span>}
             </p>
-            <p style={{ fontSize: 11, color: '#9CA3AF', marginTop: 6 }}>{sub}</p>
+            <p style={{ fontSize: 11, color: '#9CA3AF', marginTop: 4 }}>{sub}</p>
           </div>
         ))}
       </div>
@@ -646,7 +648,7 @@ function PMHome({ currentUser, sprint, onSendNotification, teamMembers = [], upd
 /* ─────────────────────────────────────────────
    팀원 홈
 ───────────────────────────────────────────── */
-function MemberHome({ currentUser, sprint, moveTask }) {
+function MemberHome({ currentUser, sprint, moveTask, isMobile }) {
   const tasks      = sprint.tasks
   const myTasks    = tasks.filter(t => t.member?.name === currentUser.name)
   const myNow      = myTasks.filter(t => t.status === 'inprogress')
@@ -725,7 +727,7 @@ function MemberHome({ currentUser, sprint, moveTask }) {
   }
 
   return (
-    <div style={{ flex: 1, overflowY: 'auto', background: '#F4F5F7', padding: '20px 24px', display: 'flex', flexDirection: 'column', gap: 16 }}>
+    <div style={{ flex: 1, overflowY: 'auto', background: '#F4F5F7', padding: isMobile ? '14px 16px' : '20px 24px', display: 'flex', flexDirection: 'column', gap: 16 }}>
 
       {/* 새 스프린트 알림 */}
       {sprint.startedAt && (() => {
@@ -805,7 +807,7 @@ function MemberHome({ currentUser, sprint, moveTask }) {
         </div>
       )}
 
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 14 }}>
         {/* 지금 할 일 */}
         <div style={{ ...card, padding: '16px 18px' }}>
           <SectionTitle count={myNow.length} countColor={myNow.length > 0 ? 'blue' : undefined}>지금 할 일</SectionTitle>
@@ -838,7 +840,7 @@ function MemberHome({ currentUser, sprint, moveTask }) {
 
       {/* 의존성 */}
       {(waitingOnMe.length > 0 || iWait.length > 0) && (
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 14 }}>
           {waitingOnMe.length > 0 && (
             <div style={{ ...card, padding: '16px 18px' }}>
               <SectionTitle count={waitingOnMe.length} countColor="yellow">나를 기다리는 업무</SectionTitle>
@@ -886,6 +888,7 @@ function MemberHome({ currentUser, sprint, moveTask }) {
 ───────────────────────────────────────────── */
 export default function DashboardPage() {
   const navigate = useNavigate()
+  const isMobile = useIsMobile()
   const { sprint, closeSprint, moveTask, updateTask } = useSprintStore()
   const { currentUser, can }              = useAuthStore()
   const { add: addToBacklog }             = useBacklogStore()
@@ -969,9 +972,9 @@ export default function DashboardPage() {
       </Topbar>
 
       {isPM ? (
-        <PMHome currentUser={currentUser} sprint={sprint} onSendNotification={handleSendNotification} teamMembers={teamMembers} updateTask={updateTask} />
+        <PMHome currentUser={currentUser} sprint={sprint} onSendNotification={handleSendNotification} teamMembers={teamMembers} updateTask={updateTask} isMobile={isMobile} />
       ) : currentUser ? (
-        <MemberHome currentUser={currentUser} sprint={sprint} moveTask={moveTask} />
+        <MemberHome currentUser={currentUser} sprint={sprint} moveTask={moveTask} isMobile={isMobile} />
       ) : (
         <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 8, background: '#F4F5F7', color: '#9CA3AF', fontSize: 13 }}>
           <p>왼쪽에서 팀원을 선택하면 내 할 일을 볼 수 있어요</p>
