@@ -62,8 +62,7 @@ const MOBILE_NAV = [
   { to: '/backlog',        icon: icons.backlog, label: '할 일', roles: ['PM', 'member'] },
 ]
 
-function MobileProfileSheet({ onClose }) {
-  const { currentUser, login, logout } = useAuthStore()
+function MobileProfileSheet({ onClose, currentUser, login, logout }) {
   const { members } = useTeamStore()
   const { notifications, markAllRead, clear, unread } = useNotificationStore()
   const [tab, setTab] = useState('profile') // 'profile' | 'notif'
@@ -225,7 +224,7 @@ function HamburgerDrawer({ onClose }) {
 
 export default function AppLayout() {
   const isMobile = useIsMobile()
-  const { currentUser } = useAuthStore()
+  const { currentUser, login, logout } = useAuthStore()
   const { unread } = useNotificationStore()
   const [showProfile, setShowProfile] = useState(false)
   const [showDrawer, setShowDrawer] = useState(false)
@@ -318,7 +317,7 @@ export default function AppLayout() {
         </button>
       </nav>
 
-      {showProfile && <MobileProfileSheet onClose={() => setShowProfile(false)} />}
+      {showProfile && <MobileProfileSheet currentUser={currentUser} login={login} logout={logout} onClose={() => setShowProfile(false)} />}
       {showDrawer && <HamburgerDrawer onClose={() => setShowDrawer(false)} />}
     </div>
   )
