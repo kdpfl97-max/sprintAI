@@ -39,7 +39,7 @@ const TASK_META = {
   'AI 계획 초안 알고리즘': { reason: 'SprintAI 핵심 차별점. 2주차 배정은 1주차 인프라 완료 전제', week: 2, memberId: 'c' },
   'AI 이번 계획 만들기':   { reason: 'SprintAI 핵심 차별점. 2주차 배정은 1주차 인프라 완료 전제', week: 2, memberId: 'c' },
   'AI 태스크 분해기':      { reason: '에픽 → 태스크 자동 분해. AI 계획 초안 완성 후 연동',       week: 2, memberId: 'c' },
-  '칸반 보드':             { reason: '스프린트 실행 필수 인터페이스 — 배정 완료 후 착수 가능',    week: 2, memberId: 'b' },
+  '칸반 보드':             { reason: '이번 계획 실행 필수 인터페이스 — 배정 완료 후 착수 가능',   week: 2, memberId: 'b' },
   '스프린트 대시보드':     { reason: 'PM 모니터링 화면 — 데이터 흐름이 완성된 2주차에 배정',     week: 2, memberId: 'd' },
   '대시보드':              { reason: 'PM 모니터링 화면 — 데이터 흐름이 완성된 2주차에 배정',     week: 2, memberId: 'd' },
 }
@@ -95,7 +95,7 @@ function SprintMetaModal({ onConfirm, onClose }) {
         <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
           {/* 이름 */}
           <div>
-            <label style={{ fontSize: 12, fontWeight: 600, color: '#374151', display: 'block', marginBottom: 6 }}>스프린트 이름</label>
+            <label style={{ fontSize: 12, fontWeight: 600, color: '#374151', display: 'block', marginBottom: 6 }}>이번 계획 이름</label>
             <input style={inputStyle} value={meta.name} onChange={e => setMeta(p => ({ ...p, name: e.target.value }))} placeholder="예: Sprint 2 — 결제 기능" />
           </div>
 
@@ -116,7 +116,7 @@ function SprintMetaModal({ onConfirm, onClose }) {
 
           {/* 목표 */}
           <div>
-            <label style={{ fontSize: 12, fontWeight: 600, color: '#374151', display: 'block', marginBottom: 6 }}>스프린트 목표 <span style={{ fontWeight: 400, color: '#9CA3AF' }}>(선택)</span></label>
+            <label style={{ fontSize: 12, fontWeight: 600, color: '#374151', display: 'block', marginBottom: 6 }}>이번 계획 목표 <span style={{ fontWeight: 400, color: '#9CA3AF' }}>(선택)</span></label>
             <textarea style={{ ...inputStyle, resize: 'vertical', minHeight: 72, fontFamily: 'inherit', lineHeight: 1.6 }}
               value={meta.goal} onChange={e => setMeta(p => ({ ...p, goal: e.target.value }))}
               placeholder="예: 핵심 AI 기능 MVP를 완성해 내부 베타 테스트를 시작한다" />
@@ -160,7 +160,9 @@ function MemberPicker({ selected, onChange, members }) {
   function toggle() {
     if (pos) { setPos(null); return }
     const r = btnRef.current.getBoundingClientRect()
-    setPos({ top: r.bottom + 6, right: window.innerWidth - r.right })
+    const dropW = 180
+    const left = Math.min(r.left, window.innerWidth - dropW - 8)
+    setPos({ top: r.bottom + 6, left: Math.max(8, left) })
   }
 
   return (
@@ -182,7 +184,7 @@ function MemberPicker({ selected, onChange, members }) {
         <>
           <div style={{ position: 'fixed', inset: 0, zIndex: 98 }} onClick={() => setPos(null)} />
           <div style={{
-            position: 'fixed', top: pos.top, right: pos.right, zIndex: 99,
+            position: 'fixed', top: pos.top, left: pos.left, zIndex: 99,
             background: '#fff', border: '1px solid #E8EAED', borderRadius: 12,
             boxShadow: '0 8px 24px rgba(17,24,39,0.14)', padding: 6, minWidth: 170,
           }}>
@@ -730,10 +732,10 @@ export default function SprintBuilderPage() {
 
           {/* 1단계: 스프린트 기본 정보 (인라인) */}
           <div style={{ ...card, padding: isMobile ? 16 : 20 }}>
-            <p style={{ fontSize: 14, fontWeight: 700, color: '#111827', marginBottom: 16 }}>① 스프린트 기본 정보</p>
+            <p style={{ fontSize: 14, fontWeight: 700, color: '#111827', marginBottom: 16 }}>① 이번 계획 기본 정보</p>
             <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 12 }}>
               <div>
-                <label style={{ fontSize: 12, fontWeight: 600, color: '#374151', display: 'block', marginBottom: 6 }}>스프린트 이름 *</label>
+                <label style={{ fontSize: 12, fontWeight: 600, color: '#374151', display: 'block', marginBottom: 6 }}>이번 계획 이름 *</label>
                 <input style={inputStyle} value={meta.name} onChange={e => setMeta(p => ({ ...p, name: e.target.value }))} placeholder="예: Sprint 2 — 결제 기능" />
               </div>
               <div>
@@ -747,7 +749,7 @@ export default function SprintBuilderPage() {
                 </div>
               </div>
               <div style={{ gridColumn: '1/-1' }}>
-                <label style={{ fontSize: 12, fontWeight: 600, color: '#374151', display: 'block', marginBottom: 6 }}>스프린트 목표 <span style={{ fontWeight: 400, color: '#9CA3AF' }}>(선택)</span></label>
+                <label style={{ fontSize: 12, fontWeight: 600, color: '#374151', display: 'block', marginBottom: 6 }}>이번 계획 목표 <span style={{ fontWeight: 400, color: '#9CA3AF' }}>(선택)</span></label>
                 <input style={inputStyle} value={meta.goal} onChange={e => setMeta(p => ({ ...p, goal: e.target.value }))} placeholder="예: 핵심 AI 기능 MVP를 완성해 내부 베타 테스트를 시작한다" />
               </div>
             </div>
@@ -863,7 +865,7 @@ export default function SprintBuilderPage() {
                 <div key={i} style={{ width: 10, height: 10, borderRadius: '50%', background: '#2563EB', animation: `pulse 1.2s ${i*0.2}s infinite` }} />
               ))}
             </div>
-            <p style={{ fontSize: 14, fontWeight: 600, color: '#111827' }}>AI가 스프린트를 설계하고 있어요</p>
+            <p style={{ fontSize: 14, fontWeight: 600, color: '#111827' }}>AI가 이번 계획을 설계하고 있어요</p>
             <style>{`@keyframes pulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:0.25;transform:scale(0.75)}}`}</style>
           </div>
         )}
@@ -876,7 +878,7 @@ export default function SprintBuilderPage() {
               {sprintMeta && (
                 <div style={{ ...card, padding: '14px 20px', display: 'flex', alignItems: 'center', gap: 20, flexWrap: 'wrap' }}>
                   <div>
-                    <div style={{ fontSize: 11, color: '#9CA3AF', marginBottom: 2 }}>스프린트</div>
+                    <div style={{ fontSize: 11, color: '#9CA3AF', marginBottom: 2 }}>이번 계획</div>
                     <div style={{ fontSize: 14, fontWeight: 700, color: '#111827' }}>{sprintMeta.name}</div>
                   </div>
                   <div style={{ width: 1, height: 32, background: '#E8EAED' }} />
@@ -906,7 +908,7 @@ export default function SprintBuilderPage() {
               {/* AI 근거 */}
               <div style={{ ...card, padding: '16px 20px' }}>
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
-                  <span style={{ fontSize: 14, fontWeight: 700, color: '#111827' }}>AI 스프린트 제안 — 검토 중</span>
+                  <span style={{ fontSize: 14, fontWeight: 700, color: '#111827' }}>AI 계획 제안 — 검토 중</span>
                   <span style={{ fontSize: 12, fontWeight: 600, color: '#2563EB', background: '#EFF6FF', border: '1px solid #BFDBFE', padding: '3px 10px', borderRadius: 9999 }}>신뢰도 {result?.confidence || 87}%</span>
                 </div>
                 <div style={{ padding: '12px 14px', borderRadius: 10, background: '#EFF6FF', borderLeft: '3px solid #2563EB', fontSize: 13, color: '#1F2937', lineHeight: 1.6 }}>
@@ -996,7 +998,7 @@ export default function SprintBuilderPage() {
 
               <button onClick={handleConfirm} disabled={!can.confirmSprint}
                 style={{ ...btnPrimary, width: '100%', justifyContent: 'center', height: 48, borderRadius: 14, fontSize: 14, opacity: can.confirmSprint ? 1 : 0.5 }}>
-                {!can.confirmSprint && '🔒 '}이 스프린트로 확정하기
+                {!can.confirmSprint && '🔒 '}이 계획으로 확정하기
               </button>
             </div>
           )}
@@ -1027,11 +1029,11 @@ export default function SprintBuilderPage() {
             </button>
           </>) : (<>
             <div style={{ fontSize: 13, color: '#6B7280' }}>
-              검토 완료 후 스프린트를 확정하세요
+              검토 완료 후 계획을 확정하세요
             </div>
             <button onClick={handleConfirm} disabled={!can.confirmSprint}
               style={{ ...btnPrimary, height: 44, padding: '0 32px', fontSize: 14, background: can.confirmSprint ? '#16A34A' : '#9CA3AF', cursor: can.confirmSprint ? 'pointer' : 'not-allowed' }}>
-              {!can.confirmSprint ? '🔒 스프린트 확정' : '✅ 스프린트 확정하기'}
+              {!can.confirmSprint ? '🔒 계획 확정' : '✅ 계획 확정하기'}
             </button>
           </>)}
         </div>

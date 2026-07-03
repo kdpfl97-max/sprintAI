@@ -157,7 +157,7 @@ export default function CapturePage() {
   if (!currentUser) {
     return (
       <div style={{ display: 'flex', flexDirection: 'column', flex: 1, overflow: 'hidden' }}>
-        <Topbar title="아이디어 캡처" subtitle="생각나는 할 일을 자유롭게 입력하면 AI가 할 일 형식으로 분류해줘요" />
+        <Topbar title="할일 작성" subtitle="생각나는 할 일을 자유롭게 입력하면 AI가 할 일 형식으로 분류해줘요" />
         <div style={{
           flex: 1, display: 'flex', flexDirection: 'column',
           alignItems: 'center', justifyContent: 'center',
@@ -170,7 +170,7 @@ export default function CapturePage() {
           }}>🔒</div>
           <p style={{ fontSize: 16, fontWeight: 700, color: '#111827' }}>팀원 선택이 필요해요</p>
           <p style={{ fontSize: 13, color: '#9CA3AF', textAlign: 'center', lineHeight: '22px' }}>
-            아이디어 캡처는 개인 기록이에요.<br />
+            할일 작성은 개인 기록이에요.<br />
             아래 탭의 <strong style={{ color: '#374151' }}>프로필</strong>에서 팀원을 선택하면 바로 사용할 수 있어요.
           </p>
         </div>
@@ -180,7 +180,7 @@ export default function CapturePage() {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', flex: 1, overflow: 'hidden' }}>
-      <Topbar title="아이디어 캡처" subtitle="생각나는 할 일을 자유롭게 입력하면 AI가 할 일 형식으로 분류해줘요">
+      <Topbar title="할일 작성" subtitle="생각나는 할 일을 자유롭게 입력하면 AI가 할 일 형식으로 분류해줘요">
         {tasks.length > 0 && !added && (
           <button onClick={handleAddToBacklog} disabled={checkedCount === 0}
                   style={{ ...btnPositive, opacity: checkedCount === 0 ? 0.4 : 1 }}

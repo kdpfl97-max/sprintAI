@@ -36,7 +36,7 @@ function StepDots({ total, current }) {
 
 export default function OnboardingPage() {
   const navigate = useNavigate()
-  const { settings, joinWithCode, members } = useTeamStore()
+  const { settings, joinWithCode, members, updateMember } = useTeamStore()
   const { login } = useAuthStore()
 
   // steps: 'choose' | 'pm-profile' | 'pm-code' | 'join-code' | 'join-profile'
@@ -61,7 +61,9 @@ export default function OnboardingPage() {
       initials: pmName.trim().slice(0, 1), color: pmColor,
       capacity: 80, status: 'active', email: '',
     }
-    login({ ...pm, name: pmName.trim(), initials: pmName.trim().slice(0, 1), color: pmColor })
+    const updated = { ...pm, name: pmName.trim(), initials: pmName.trim().slice(0, 1), color: pmColor, email: '' }
+    login(updated)
+    updateMember(pm.id, updated)
     setStep('pm-code')
   }
 
@@ -111,7 +113,7 @@ export default function OnboardingPage() {
               onMouseEnter={e => e.currentTarget.style.borderColor = '#1D4ED8'}
               onMouseLeave={e => e.currentTarget.style.borderColor = '#E8EAED'}>
                 <p style={{ fontSize: 14, fontWeight: 700, color: '#111827', marginBottom: 4 }}>🏗️ PM으로 시작하기</p>
-                <p style={{ fontSize: 12, color: '#9CA3AF' }}>팀을 만들고 스프린트를 관리해요</p>
+                <p style={{ fontSize: 12, color: '#9CA3AF' }}>팀을 만들고 이번 계획을 관리해요</p>
               </button>
               <button onClick={() => setStep('join-code')} style={{
                 padding: '18px 20px', borderRadius: 14, border: '2px solid #E8EAED',
@@ -193,7 +195,7 @@ export default function OnboardingPage() {
 
             <div style={{ background: '#F9FAFB', borderRadius: 10, padding: '12px 14px', marginBottom: 20 }}>
               <p style={{ fontSize: 11, color: '#6B7280', lineHeight: 1.6 }}>
-                💡 팀원이 이 코드로 참여하면 대시보드에서 함께 스프린트를 관리할 수 있어요
+                💡 팀원이 이 코드로 참여하면 홈에서 함께 이번 계획을 관리할 수 있어요
               </p>
             </div>
 

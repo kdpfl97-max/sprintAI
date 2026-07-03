@@ -3,6 +3,7 @@ import Topbar from '../components/layout/Topbar'
 import { useIsMobile } from '../hooks/useIsMobile'
 import { useTeamStore, ROLE_OPTIONS, COLOR_OPTIONS } from '../store/useTeamStore'
 import { useSprintStore } from '../store/useSprintStore'
+import { useAuthStore } from '../store/useAuthStore'
 
 const card = { background: '#FFFFFF', border: '1px solid #E8EAED', borderRadius: 16, boxShadow: '0 1px 2px rgba(17,24,39,0.04)' }
 const inputStyle = { width: '100%', padding: '10px 12px', border: '1px solid #E8EAED', borderRadius: 14, background: '#F4F5F7', fontSize: 13, color: '#111827', outline: 'none', boxSizing: 'border-box' }
@@ -42,7 +43,7 @@ function MemberForm({ initial = EMPTY_FORM, onSubmit, onCancel, title }) {
           </select>
         </div>
         <div>
-          <label style={labelStyle}>스프린트 Capacity (h)</label>
+          <label style={labelStyle}>이번 계획 가용 시간 (h)</label>
           <input type="number" min="0" max="160" style={inputStyle}
             value={form.capacity} onChange={e => set('capacity', Number(e.target.value))}
             onFocus={focusInput} onBlur={blurInput} />
@@ -81,6 +82,8 @@ function MemberForm({ initial = EMPTY_FORM, onSubmit, onCancel, title }) {
 
 export default function TeamPage() {
   const isMobile = useIsMobile()
+  const { currentUser } = useAuthStore()
+  const isPM = currentUser?.role === 'PM'
   const { members, addMember, updateMember, removeMember, settings, regenerateCode, setDiscordWebhook } = useTeamStore()
   const { sprint } = useSprintStore()
   const [showAdd, setShowAdd]       = useState(false)
@@ -110,15 +113,23 @@ export default function TeamPage() {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', flex: 1, overflow: 'hidden' }}>
-      <Topbar title="팀 관리" subtitle={`총 ${members.length}명 · 스프린트 가용 시간 ${totalCapacity}시간`}>
-        <button onClick={() => setShowInvite(true)} style={btnPrimary} className="btn-press">
-          + 팀원 초대
-        </button>
+      <Topbar title="팀 관리" subtitle={`총 ${members.length}명 · 이번 계획 가용 시간 ${totalCapacity}시간`}>
+        {isPM && (
+          <button onClick={() => setShowInvite(true)} style={btnPrimary} className="btn-press">
+            + 팀원 초대
+          </button>
+        )}
       </Topbar>
 
       <div style={{ flex: 1, overflowY: 'auto', padding: '20px 24px', display: 'flex', flexDirection: 'column', gap: 18, background: '#F4F5F7' }}>
 
-        {showAdd && !editId && (
+        {!isPM && (
+          <div style={{ ...card, padding: '12px 16px', background: '#F9FAFB', color: '#6B7280', fontSize: 12, display: 'flex', alignItems: 'center', gap: 8 }}>
+            🔒 팀원 정보는 PM만 수정할 수 있어요. 열람만 가능합니다.
+          </div>
+        )}
+
+        {isPM && showAdd && !editId && (
           <MemberForm title="새 팀원 초대"
             onSubmit={data => { addMember(data); setShowAdd(false) }}
             onCancel={() => setShowAdd(false)} />
@@ -128,8 +139,8 @@ export default function TeamPage() {
         <div style={{ display: 'grid', gridTemplateColumns: isMobile ? 'repeat(2,1fr)' : 'repeat(4,1fr)', gap: isMobile ? 10 : 14 }}>
           {[
             { label: '팀원 수',           value: members.length, unit: '명', sub: '전체 활성' },
-            { label: '총 Capacity',       value: totalCapacity,  unit: 'h',  sub: '스프린트 기준' },
-            { label: '현재 스프린트 태스크', value: totalTasks,  unit: '개', sub: `완료 ${doneCount}개` },
+            { label: '총 가용 시간',       value: totalCapacity,  unit: 'h',  sub: '이번 계획 기준' },
+            { label: '현재 계획 태스크',   value: totalTasks,  unit: '개', sub: `완료 ${doneCount}개` },
             { label: '팀 평균 완료율',    value: completionPct,  unit: '%',  sub: sprint.name },
           ].map(({ label, value, unit, sub }) => (
             <div key={label} style={{ ...card, padding: '16px 20px' }}>
@@ -153,7 +164,7 @@ export default function TeamPage() {
             const stats = getMemberStats(member)
             const pct   = stats.total > 0 ? Math.round((stats.done / stats.total) * 100) : 0
 
-            if (editId === member.id) return (
+            if (isPM && editId === member.id) return (
               <MemberForm key={member.id} title="팀원 수정" initial={member}
                 onSubmit={data => { updateMember(member.id, data); setEditId(null) }}
                 onCancel={() => setEditId(null)} />
@@ -187,7 +198,7 @@ export default function TeamPage() {
                   {/* 지표 */}
                   <div style={{ display: 'flex', width: isMobile ? '100%' : 'auto', borderTop: isMobile ? '1px solid #E8EAED' : 'none', paddingTop: isMobile ? 10 : 0 }}>
                   {[
-                    { label: 'Capacity', value: member.capacity, unit: 'h' },
+                    { label: '가용 시간', value: member.capacity, unit: 'h' },
                     { label: '태스크', value: `${stats.done}/${stats.total}`, unit: '' },
                     { label: '완료 작업량', value: stats.doneSp, unit: `/${stats.sp}`, valueColor: member.color },
                   ].map(({ label, value, unit, valueColor }) => (
@@ -201,21 +212,23 @@ export default function TeamPage() {
                   </div>
 
                   {/* 액션 */}
-                  <div style={{ display: 'flex', gap: 6, paddingLeft: 16, borderLeft: '1px solid #E8EAED', flexShrink: 0 }}>
-                    <button onClick={() => setEditId(member.id)}
-                            style={{ padding: '7px 14px', fontSize: 12, fontWeight: 600, borderRadius: 10, border: '1px solid #E8EAED', background: '#FFF', color: '#4B5563', cursor: 'pointer' }}
-                            className="btn-press-soft">수정</button>
-                    <button onClick={() => setDeleteId(member.id)}
-                            style={{ padding: '7px 14px', fontSize: 12, fontWeight: 600, borderRadius: 10, border: '1px solid #FECACA', background: '#FFF5F5', color: '#DC2626', cursor: 'pointer' }}
-                            className="btn-press-soft">삭제</button>
-                  </div>
+                  {isPM && (
+                    <div style={{ display: 'flex', gap: 6, paddingLeft: 16, borderLeft: '1px solid #E8EAED', flexShrink: 0 }}>
+                      <button onClick={() => setEditId(member.id)}
+                              style={{ padding: '7px 14px', fontSize: 12, fontWeight: 600, borderRadius: 10, border: '1px solid #E8EAED', background: '#FFF', color: '#4B5563', cursor: 'pointer' }}
+                              className="btn-press-soft">수정</button>
+                      <button onClick={() => setDeleteId(member.id)}
+                              style={{ padding: '7px 14px', fontSize: 12, fontWeight: 600, borderRadius: 10, border: '1px solid #FECACA', background: '#FFF5F5', color: '#DC2626', cursor: 'pointer' }}
+                              className="btn-press-soft">삭제</button>
+                    </div>
+                  )}
                 </div>
 
                 {/* 진행률 바 */}
                 {stats.total > 0 && (
                   <div style={{ padding: '0 20px 16px', borderTop: '1px solid #F4F5F7' }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, color: '#9CA3AF', margin: '12px 0 6px' }}>
-                      <span>스프린트 진행률</span>
+                      <span>이번 계획 진행률</span>
                       <span style={{ fontWeight: 600, color: member.color }}>{pct}%</span>
                     </div>
                     <div style={{ height: 4, background: '#E8EAED', borderRadius: 2, overflow: 'hidden', marginBottom: 10 }}>

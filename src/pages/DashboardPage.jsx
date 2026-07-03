@@ -511,7 +511,7 @@ function PMHome({ currentUser, sprint, onSendNotification, teamMembers = [], upd
               <p style={{ fontSize: 12, color: '#9CA3AF' }}>모든 팀원의 알림함에 전달됩니다</p>
             </div>
             <div style={{ padding: '12px 14px', borderRadius: 12, background: '#F4F5F7', border: '1px solid #E8EAED' }}>
-              <p style={{ fontSize: 11, fontWeight: 600, color: '#6B7280', marginBottom: 6 }}>스프린트 현황 자동 요약</p>
+              <p style={{ fontSize: 11, fontWeight: 600, color: '#6B7280', marginBottom: 6 }}>이번 계획 현황 자동 요약</p>
               <p style={{ fontSize: 12, color: '#374151', lineHeight: '18px' }}>
                 📊 {sprint.name} 현황: 완료 {tasks.filter(t=>t.status==='done').length}/{tasks.length}개 ({pct}%) · 남은 기간 {daysLeft}일
                 {blockerTasks.length > 0 ? ` · 블로커 ${blockerTasks.length}건` : ''}
@@ -818,7 +818,7 @@ function MemberHome({ currentUser, sprint, moveTask, isMobile }) {
           <div style={{ padding: '14px 18px', borderRadius: 14, background: '#EFF6FF', border: '1px solid #BFDBFE', display: 'flex', gap: 14 }}>
             <span style={{ fontSize: 20, flexShrink: 0 }}>🎉</span>
             <div>
-              <p style={{ fontSize: 13, fontWeight: 700, color: '#1D4ED8', marginBottom: 4 }}>새 스프린트가 시작됐어요!</p>
+              <p style={{ fontSize: 13, fontWeight: 700, color: '#1D4ED8', marginBottom: 4 }}>새 계획이 시작됐어요!</p>
               <p style={{ fontSize: 12, color: '#3B82F6' }}>
                 {currentUser.name}님 배정 {myTasks.filter(t => t.status !== 'done').length}개 — {myTasks.filter(t => t.status !== 'done').slice(0, 2).map(t => t.title).join(', ')}
               </p>
@@ -982,7 +982,10 @@ export default function DashboardPage() {
     const flag = sessionStorage.getItem('onboarding_done')
     if (flag) {
       sessionStorage.removeItem('onboarding_done')
-      setWelcomeToast(flag === 'pm' ? '팀이 준비됐어요! 팀원을 초대하고 첫 스프린트를 시작해보세요 🚀' : '환영해요! 담당 태스크를 확인해보세요 →')
+      const pmMessage = sprint?.status === 'active'
+        ? '팀이 준비됐어요! 진행 중인 계획을 확인해보세요 🚀'
+        : '팀이 준비됐어요! 팀원을 초대하고 첫 계획을 시작해보세요 🚀'
+      setWelcomeToast(flag === 'pm' ? pmMessage : '환영해요! 담당 태스크를 확인해보세요 →')
       setTimeout(() => setWelcomeToast(null), 4500)
     }
   }, [])
@@ -1003,10 +1006,13 @@ export default function DashboardPage() {
 
   function handleClose() {
     const incomplete = closeSprint()
-    incomplete.forEach(t => addToBacklog({
-      title: t.title, priority: t.priority, estimatedHours: t.estimatedHours || 0,
-      desc: `[${sprint.name}에서 이월]`, category: '기능', stage: 'MVP',
-    }, currentUser?.id || null))
+    incomplete.forEach(t => {
+      const memberNote = t.member?.name ? ` · ${t.member.name} 담당 · ${t.progress || 0}% 진행` : ''
+      addToBacklog({
+        title: t.title, priority: t.priority, estimatedHours: t.estimatedHours || 0,
+        desc: `[${sprint.name}에서 이월${memberNote}]`, category: '기능', stage: 'MVP',
+      }, currentUser?.id || null)
+    })
     setCloseModal(false)
     navigate('/retro')
   }
@@ -1014,13 +1020,13 @@ export default function DashboardPage() {
   if (!sprint?.status || sprint.status === 'completed') {
     return (
       <div style={{ display: 'flex', flexDirection: 'column', flex: 1, overflow: 'hidden' }}>
-        <Topbar title="대시보드" subtitle="진행 중인 계획 없음" />
+        <Topbar title="홈" subtitle="진행 중인 계획 없음" />
         <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 16, background: '#F4F5F7' }}>
           <div style={{ width: 60, height: 60, borderRadius: 18, background: '#EFF6FF', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 26 }}>📊</div>
           <div style={{ textAlign: 'center' }}>
             <p style={{ fontSize: 16, fontWeight: 700, color: '#111827', marginBottom: 6 }}>진행 중인 계획이 없어요</p>
             <p style={{ fontSize: 13, color: '#9CA3AF' }}>
-              {sprint?.status === 'completed' ? '스프린트가 종료됐어요. 회고 후 새 계획을 시작해보세요.' : '이번 계획 만들기에서 스프린트를 만들어보세요.'}
+              {sprint?.status === 'completed' ? '이번 계획이 종료됐어요. 회고 후 새 계획을 시작해보세요.' : '이번 계획 만들기에서 계획을 만들어보세요.'}
             </p>
           </div>
           <a href={sprint?.status === 'completed' ? '/retro' : '/sprint/builder'}
@@ -1056,7 +1062,7 @@ export default function DashboardPage() {
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(17,24,39,0.45)', zIndex: 200, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
           onClick={e => { if (e.target === e.currentTarget) setCloseModal(false) }}>
           <div style={{ background: '#fff', borderRadius: 20, padding: 28, width: 420, display: 'flex', flexDirection: 'column', gap: 16, boxShadow: '0 20px 60px rgba(17,24,39,0.2)' }}>
-            <p style={{ fontSize: 17, fontWeight: 700, color: '#111827' }}>스프린트를 종료할까요?</p>
+            <p style={{ fontSize: 17, fontWeight: 700, color: '#111827' }}>이번 계획을 종료할까요?</p>
             <p style={{ fontSize: 13, color: '#9CA3AF' }}>미완료 업무는 전체 할 일로 이월됩니다.</p>
             <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
               <button onClick={() => setCloseModal(false)} style={{ padding: '0 18px', height: 38, borderRadius: 10, border: '1px solid #E8EAED', background: '#F4F5F7', fontSize: 13, fontWeight: 600, color: '#374151', cursor: 'pointer' }}>취소</button>
@@ -1066,12 +1072,12 @@ export default function DashboardPage() {
         </div>
       )}
 
-      <Topbar title="대시보드" subtitle={subtitle}>
+      <Topbar title="홈" subtitle={subtitle}>
         {isPM && can.confirmSprint && sprint.status !== 'completed' && (
           <button onClick={() => setCloseModal(true)} style={{
             padding: '0 16px', height: 36, borderRadius: 10, fontSize: 13, fontWeight: 600,
             background: '#FEF2F2', color: '#DC2626', border: '1px solid #FECACA', cursor: 'pointer',
-          }}>스프린트 종료</button>
+          }}>계획 종료</button>
         )}
       </Topbar>
 

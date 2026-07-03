@@ -56,8 +56,8 @@ const icons = {
 }
 
 const MOBILE_NAV = [
-  { to: '/capture',        icon: icons.capture, label: '캡처',  roles: ['PM', 'member', 'guest'] },
-  { to: '/sprint/1/board', icon: icons.board,   label: '칸반',  roles: ['PM', 'member'] },
+  { to: '/capture',        icon: icons.capture, label: '작성',  roles: ['PM', 'member', 'guest'] },
+  { to: '/sprint/1/board', icon: icons.board,   label: '현황',  roles: ['PM', 'member'] },
   { to: '/dashboard',      icon: icons.home,    label: '홈',    roles: ['PM', 'member'] },
   { to: '/backlog',        icon: icons.backlog, label: '할 일', roles: ['PM', 'member'] },
 ]
@@ -164,14 +164,16 @@ function MobileProfileSheet({ onClose, currentUser, login, logout }) {
 }
 
 const DRAWER_NAV = [
-  { to: '/sprint/builder', icon: '⚡', label: '스프린트 빌더', desc: 'AI로 태스크를 자동 배분' },
-  { to: '/team',           icon: '👥', label: '팀 관리',       desc: '팀원 초대 및 역할 설정' },
-  { to: '/retro',          icon: '📝', label: '회고',           desc: '스프린트 회고 작성' },
+  { to: '/sprint/builder', icon: '⚡', label: '이번 계획 만들기', desc: 'AI로 태스크를 자동 배분', roles: ['PM'] },
+  { to: '/team',           icon: '👥', label: '팀 관리',         desc: '팀원 초대 및 역할 설정', roles: ['PM'] },
+  { to: '/retro',          icon: '📝', label: '이번 계획 회고',   desc: '이번 계획 돌아보기',     roles: ['PM', 'member'] },
 ]
 
-function HamburgerDrawer({ onClose }) {
+function HamburgerDrawer({ onClose, currentUser }) {
   const navigate = useNavigate()
   const location = useLocation()
+  const roleKey = currentUser?.role === 'PM' ? 'PM' : 'member'
+  const nav = DRAWER_NAV.filter(item => item.roles.includes(roleKey))
   return (
     <>
       <div onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 500 }} />
@@ -194,7 +196,7 @@ function HamburgerDrawer({ onClose }) {
         {/* 메뉴 */}
         <div style={{ flex: 1, padding: '12px 10px', overflowY: 'auto' }}>
           <p style={{ fontSize: 11, fontWeight: 700, color: C.textSub, padding: '4px 10px 8px', letterSpacing: '0.08em' }}>추가 기능</p>
-          {DRAWER_NAV.map(({ to, icon, label, desc }) => {
+          {nav.map(({ to, icon, label, desc }) => {
             const isActive = location.pathname === to
             return (
               <button key={to} onClick={() => { navigate(to); onClose() }} style={{
@@ -318,7 +320,7 @@ export default function AppLayout() {
       </nav>
 
       {showProfile && <MobileProfileSheet currentUser={currentUser} login={login} logout={logout} onClose={() => setShowProfile(false)} />}
-      {showDrawer && <HamburgerDrawer onClose={() => setShowDrawer(false)} />}
+      {showDrawer && <HamburgerDrawer currentUser={currentUser} onClose={() => setShowDrawer(false)} />}
     </div>
   )
 }

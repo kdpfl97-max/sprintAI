@@ -24,7 +24,7 @@ const DEFAULT_MEMBERS = [
   { id: 'm4', name: '최지은', role: '디자인',     email: 'jieun@team.io',   color: '#F59E0B', initials: '최', capacity: 80, status: 'active' },
 ]
 
-const ROLE_OPTIONS = ['프론트엔드', '백엔드', 'AI/백엔드', '풀스택', '디자인', 'PM', 'DevOps', 'QA']
+const ROLE_OPTIONS = ['프론트엔드', '백엔드', 'AI/백엔드', '풀스택', '디자인', '마케터', 'PM', 'DevOps', 'QA']
 const COLOR_OPTIONS = [
   '#2E75B6', '#22C55E', '#8B5CF6', '#F59E0B',
   '#EF4444', '#EC4899', '#06B6D4', '#F97316',

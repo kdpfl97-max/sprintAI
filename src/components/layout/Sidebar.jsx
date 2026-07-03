@@ -7,12 +7,12 @@ import { useNotificationStore } from '../../store/useNotificationStore'
 
 // roles: 'PM' | 'member' | 'guest' (비로그인)
 const NAV_ITEMS = [
-  { to: '/capture',        label: '아이디어 캡처',       badge: null, roles: ['PM', 'member', 'guest'] },
+  { to: '/capture',        label: '할일 작성',           badge: null, roles: ['PM', 'member', 'guest'] },
   { to: '/backlog',        label: '전체 할 일',          badge: null, roles: ['PM', 'member'] },
   { to: '/sprint/builder', label: '이번 계획 만들기',    badge: null, roles: ['PM'] },
-  { to: '/sprint/1/board', label: '칸반 보드',           badge: null, roles: ['PM', 'member'] },
-  { to: '/dashboard',      label: '대시보드',            badge: null, roles: ['PM', 'member'] },
-  { to: '/retro',          label: '스프린트 회고',       badge: null, roles: ['PM', 'member'] },
+  { to: '/sprint/1/board', label: '진행 현황판',         badge: null, roles: ['PM', 'member'] },
+  { to: '/dashboard',      label: '홈',                  badge: null, roles: ['PM', 'member'] },
+  { to: '/retro',          label: '이번 계획 회고',      badge: null, roles: ['PM', 'member'] },
   { to: '/team',           label: '팀 관리',             badge: null, roles: ['PM'] },
 ]
 

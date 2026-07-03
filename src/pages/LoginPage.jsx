@@ -1,9 +1,9 @@
 import { useNavigate } from 'react-router-dom'
 
 const features = [
-  { icon: '🤖', text: 'AI가 백로그를 스프린트로 자동 배분' },
-  { icon: '📋', text: '칸반 보드로 실시간 진행 상황 공유' },
-  { icon: '💡', text: '아이디어 캡처 → 즉시 태스크 전환' },
+  { icon: '🤖', text: 'AI가 할 일을 이번 계획으로 자동 배분' },
+  { icon: '📋', text: '진행 현황판으로 실시간 상황 공유' },
+  { icon: '💡', text: '할일 작성 → 즉시 태스크 전환' },
 ]
 
 export default function LoginPage() {

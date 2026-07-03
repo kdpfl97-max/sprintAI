@@ -286,8 +286,24 @@ export default function BacklogPage() {
         {/* 태스크 목록 */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
           {filtered.length === 0 && (
-            <div style={{ textAlign: 'center', padding: '48px 0', color: '#9CA3AF', fontSize: 14 }}>
-              태스크가 없어요.
+            <div style={{ textAlign: 'center', padding: '52px 24px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12 }}>
+              {items.length === 0 ? (
+                <>
+                  <div style={{ fontSize: 40 }}>📋</div>
+                  <p style={{ fontSize: 15, fontWeight: 700, color: '#374151' }}>아직 태스크가 없어요</p>
+                  {isPM ? (
+                    <p style={{ fontSize: 13, color: '#9CA3AF', lineHeight: 1.6 }}>오른쪽 위 <strong>+ 추가</strong> 버튼으로<br />첫 번째 태스크를 만들어보세요</p>
+                  ) : (
+                    <p style={{ fontSize: 13, color: '#9CA3AF', lineHeight: 1.6 }}>PM이 태스크를 등록하면<br />여기에 표시돼요</p>
+                  )}
+                </>
+              ) : (
+                <>
+                  <div style={{ fontSize: 36 }}>🔍</div>
+                  <p style={{ fontSize: 14, fontWeight: 600, color: '#374151' }}>검색 결과가 없어요</p>
+                  <p style={{ fontSize: 13, color: '#9CA3AF' }}>필터 조건을 바꿔보세요</p>
+                </>
+              )}
             </div>
           )}
 

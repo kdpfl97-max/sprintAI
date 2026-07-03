@@ -33,9 +33,13 @@ const DEFAULT_ENTRIES = {
   ],
 }
 
-// 더미 AI 회고 결과 (USE_MOCK=true일 때 사용)
+// 더미 AI 회고 결과 (USE_MOCK=true일 때 사용) — summary만 실제 완료율로 채움
+function buildMockSummary(pct, doneCount, totalCount) {
+  const tone = pct >= 70 ? '목표를 무난히 달성한' : pct >= 40 ? '목표 대비 다소 아쉬운' : '목표 대비 진행이 더뎠던'
+  return `이번 계획은 ${tone} 스프린트였습니다. 완료율 ${pct}%(${doneCount}/${totalCount}개)로, Must 태스크 중심으로 진행되어 핵심 기능의 품질은 유지됐습니다.`
+}
+
 const MOCK_AI_RETRO = {
-  summary: 'Sprint 1은 인증·팀 기반 핵심 기능을 안정적으로 완료한 순조로운 스프린트였습니다. 완료율 42%는 목표 대비 약간 낮지만, Must 태스크 중심으로 진행되어 품질은 유지됐습니다.',
   liked:   '역할별 권한 분리와 SOCAR 디자인 시스템 적용으로 UI 일관성과 개발 효율이 모두 높았습니다. 특히 PM 주도의 백로그 관리가 팀 방향성을 잘 잡아줬습니다.',
   learned: '인터뷰를 개발 이후에 진행하면서 방향 수정이 필요한 부분이 발생했습니다. 다음 스프린트부터는 기획-검증-개발 순서를 지키는 것이 중요합니다.',
   lacked:  'AI 태스크 분해 API 연동(t13)과 스프린트 확정 화면(t14)이 inprogress 상태에서 진행률 0%로 블로커가 됐습니다. 이민수님의 13작업량 태스크가 Sprint 1 후반 리스크였습니다.',
@@ -108,13 +112,13 @@ export default function RetroPage() {
     setAiRetro(null)
     // ponytail: mock delay — swap callClaude when USE_MOCK=false
     await new Promise(r => setTimeout(r, 2000))
-    setAiRetro(MOCK_AI_RETRO)
+    setAiRetro({ ...MOCK_AI_RETRO, summary: buildMockSummary(pct, done.length, tasks.length) })
     setAiLoading(false)
   }
 
   return (
     <div className="flex flex-col flex-1 overflow-hidden">
-      <Topbar title="스프린트 회고" subtitle={`${sprint.name} · 4L 회고`}>
+      <Topbar title="이번 계획 회고" subtitle={`${sprint.name} · 4L 회고`}>
         {isPM && (
           <button
             onClick={handleGenerateAI}
@@ -136,10 +140,10 @@ export default function RetroPage() {
         padding: '20px 24px', display: 'flex', flexDirection: 'column', gap: 16,
       }}>
 
-        {/* 스프린트 결과 요약 */}
+        {/* 이번 계획 결과 요약 */}
         <div style={{ ...card, padding: '20px 24px' }}>
           <div style={{ fontSize: 11, fontWeight: 700, color: '#6B7280', marginBottom: 14, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-            스프린트 결과 요약
+            이번 계획 결과 요약
           </div>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 16 }}>
             {[
@@ -185,7 +189,7 @@ export default function RetroPage() {
 
             {/* 다음 스프린트 액션 */}
             <div style={{ background: '#F5F3FF', border: '1px solid #DDD6FE', borderRadius: 10, padding: '14px 16px' }}>
-              <div style={{ fontSize: 12, fontWeight: 700, color: '#7C3AED', marginBottom: 10 }}>🎯 다음 스프린트 액션 아이템</div>
+              <div style={{ fontSize: 12, fontWeight: 700, color: '#7C3AED', marginBottom: 10 }}>🎯 다음 계획 액션 아이템</div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                 {aiRetro.nextActions.map((action, i) => (
                   <div key={i} style={{ display: 'flex', gap: 8, fontSize: 13, color: '#374151' }}>
@@ -204,7 +208,7 @@ export default function RetroPage() {
             <div style={{ fontSize: 24, marginBottom: 8 }}>✨</div>
             <div style={{ fontSize: 14, fontWeight: 600, color: '#1D4ED8', marginBottom: 6 }}>AI 회고 생성</div>
             <div style={{ fontSize: 13, color: '#6B7280', marginBottom: 14 }}>
-              스프린트 완료율, 블로커, 팀 활동을 분석해 AI가 회고 초안을 만들어드려요
+              이번 계획 완료율, 블로커, 팀 활동을 분석해 AI가 회고 초안을 만들어드려요
             </div>
             <button onClick={handleGenerateAI} style={{
               padding: '0 24px', height: 40, borderRadius: 10, border: 'none',
@@ -365,13 +369,13 @@ export default function RetroPage() {
           }}>
             <div>
               <p style={{ fontSize: 14, fontWeight: 700, color: '#111827', marginBottom: 4 }}>회고가 끝났나요?</p>
-              <p style={{ fontSize: 13, color: '#9CA3AF' }}>다음 스프린트를 시작해보세요. 백로그에 이월된 태스크가 준비돼 있어요.</p>
+              <p style={{ fontSize: 13, color: '#9CA3AF' }}>다음 계획을 시작해보세요. 전체 할 일에 이월된 태스크가 준비돼 있어요.</p>
             </div>
             <button onClick={() => navigate('/sprint/builder')} style={{
               padding: '0 24px', height: 42, borderRadius: 12, border: 'none',
               background: '#2563EB', color: '#fff', fontSize: 13, fontWeight: 700, cursor: 'pointer', flexShrink: 0,
             }}>
-              새 스프린트 시작 →
+              새 계획 시작 →
             </button>
           </div>
         )}

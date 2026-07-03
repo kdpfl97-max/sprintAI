@@ -14,6 +14,7 @@ const PRIORITY_STYLE = {
 const COLUMNS = [
   { id: 'todo',       label: '시작 전',  color: '#9CA3AF', bg: '#F9FAFB' },
   { id: 'inprogress', label: '진행 중',  color: '#2563EB', bg: '#F0F6FF' },
+  { id: 'review',     label: '검토 중',  color: '#F59E0B', bg: '#FFFBEB' },
   { id: 'done',       label: '완료',     color: '#10B981', bg: '#F0FDF9' },
 ]
 
@@ -33,7 +34,7 @@ function isOverdue(dateStr) {
   return d < now
 }
 
-function TaskCard({ task, allTasks, onMove, onProgressChange, onNoteChange, onOutputLink, isOwner }) {
+function TaskCard({ task, allTasks, onMove, onProgressChange, onNoteChange, onOutputLink, isOwner, isPM }) {
   const [hovered,       setHovered]       = useState(false)
   const [progress,      setProgress]      = useState(task.progress)
   const [note,          setNote]          = useState(task.note || '')
@@ -192,6 +193,33 @@ function TaskCard({ task, allTasks, onMove, onProgressChange, onNoteChange, onOu
         </div>
       )}
 
+      {/* 검토 중 */}
+      {task.status === 'review' && (
+        <div style={{ marginBottom: 8 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+            <div style={{ flex: 1, height: 4, background: '#FDE68A', borderRadius: 2 }}>
+              <div style={{ height: '100%', background: '#F59E0B', borderRadius: 2, width: `${progress}%` }} />
+            </div>
+            <span style={{ fontSize: 11, fontWeight: 700, color: '#D97706' }}>검토 중</span>
+          </div>
+          {task.note && (
+            <p style={{ marginBottom: 8, padding: '7px 10px', fontSize: 12, color: '#4B5563', background: '#F4F5F7', borderRadius: 10, lineHeight: '18px' }}>{task.note}</p>
+          )}
+          {isPM ? (
+            <div style={{ display: 'flex', gap: 6 }}>
+              <button onClick={() => onMove(task.id, 'done')}
+                style={{ flex: 1, padding: '6px', fontSize: 11, fontWeight: 700, borderRadius: 8, border: 'none', background: '#10B981', color: '#fff', cursor: 'pointer' }}
+                className="btn-press-soft">✅ 승인</button>
+              <button onClick={() => onMove(task.id, 'inprogress')}
+                style={{ flex: 1, padding: '6px', fontSize: 11, fontWeight: 700, borderRadius: 8, border: '1px solid #FECACA', background: '#FFF5F5', color: '#DC2626', cursor: 'pointer' }}
+                className="btn-press-soft">↩️ 반려</button>
+            </div>
+          ) : (
+            <p style={{ fontSize: 11, color: '#D97706', fontWeight: 600 }}>PM 검토 중...</p>
+          )}
+        </div>
+      )}
+
       {/* 완료 상태 */}
       {task.status === 'done' && (
         <div style={{ marginBottom: 8 }}>
@@ -288,13 +316,13 @@ export default function BoardPage() {
   if (!sprint?.status || sprint.status === 'completed') {
     return (
       <div style={{ display: 'flex', flexDirection: 'column', flex: 1, overflow: 'hidden' }}>
-        <Topbar title="칸반 보드" subtitle="진행 중인 스프린트 없음" />
+        <Topbar title="진행 현황판" subtitle="진행 중인 계획 없음" />
         <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 16, background: '#F4F5F7' }}>
           <div style={{ width: 60, height: 60, borderRadius: 18, background: '#EFF6FF', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 26 }}>📋</div>
           <div style={{ textAlign: 'center' }}>
-            <p style={{ fontSize: 16, fontWeight: 700, color: '#111827', marginBottom: 6 }}>진행 중인 스프린트가 없어요</p>
+            <p style={{ fontSize: 16, fontWeight: 700, color: '#111827', marginBottom: 6 }}>진행 중인 계획이 없어요</p>
             <p style={{ fontSize: 13, color: '#9CA3AF' }}>
-              {sprint?.status === 'completed' ? '스프린트가 종료됐어요. 회고 후 새 계획을 시작해보세요.' : '이번 계획 만들기에서 스프린트를 만들어보세요.'}
+              {sprint?.status === 'completed' ? '이번 계획이 종료됐어요. 회고 후 새 계획을 시작해보세요.' : '이번 계획 만들기에서 계획을 만들어보세요.'}
             </p>
           </div>
           <a href={sprint?.status === 'completed' ? '/retro' : '/sprint/builder'} style={{
@@ -316,8 +344,9 @@ export default function BoardPage() {
 
   const todo       = visibleTasks.filter(t => t.status === 'todo')
   const inprogress = visibleTasks.filter(t => t.status === 'inprogress')
+  const review     = visibleTasks.filter(t => t.status === 'review')
   const done       = visibleTasks.filter(t => t.status === 'done')
-  const colData    = { todo, inprogress, done }
+  const colData    = { todo, inprogress, review, done }
 
   const totalH = visibleTasks.reduce((s, t) => s + (t.estimatedHours || 0), 0)
   const doneH  = done.reduce((s, t) => s + (t.estimatedHours || 0), 0)
@@ -332,7 +361,7 @@ export default function BoardPage() {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', flex: 1, overflow: 'hidden' }}>
-      <Topbar title="칸반 보드" subtitle={sprint.name}>
+      <Topbar title="진행 현황판" subtitle={sprint.name}>
         {blockerCount > 0 && (
           <span style={{ fontSize: 11, fontWeight: 700, color: '#DC2626', background: '#FEE2E2', border: '1px solid #FECACA', padding: '4px 10px', borderRadius: 9999, whiteSpace: 'nowrap' }}>
             🔴 블로커 {blockerCount}개
@@ -412,8 +441,9 @@ export default function BoardPage() {
               <div key={col.id} style={{ flex: 1, overflow: 'hidden', background: col.bg, display: 'flex', flexDirection: 'column' }}>
                 <div style={{ flex: 1, overflowY: 'auto', padding: '12px 16px', display: 'flex', flexDirection: 'column', gap: 10 }}>
                   {tasks.length === 0 && (
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: 120, fontSize: 13, color: '#9CA3AF', border: '1.5px dashed #E8EAED', borderRadius: 14 }}>
-                      업무 없음
+                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 8, height: 140, border: '1.5px dashed #E8EAED', borderRadius: 14, color: '#9CA3AF' }}>
+                      <span style={{ fontSize: 28 }}>{col.id === 'todo' ? '📋' : col.id === 'inprogress' ? '⚡' : col.id === 'review' ? '🔍' : '✅'}</span>
+                      <span style={{ fontSize: 12 }}>{col.id === 'todo' ? '대기 중인 업무 없음' : col.id === 'inprogress' ? '진행 중인 업무 없음' : col.id === 'review' ? '검토 중인 업무 없음' : '완료된 업무 없음'}</span>
                     </div>
                   )}
                   {tasks.map(task => (
@@ -421,6 +451,7 @@ export default function BoardPage() {
                       onMove={moveTask} onProgressChange={updateProgress}
                       onNoteChange={updateNote} onOutputLink={handleOutputLink}
                       isOwner={isPM || task.member?.name === currentUser?.name}
+                      isPM={isPM}
                     />
                   ))}
                 </div>
@@ -460,6 +491,7 @@ export default function BoardPage() {
                       onMove={moveTask} onProgressChange={updateProgress}
                       onNoteChange={updateNote} onOutputLink={handleOutputLink}
                       isOwner={isPM || task.member?.name === currentUser?.name}
+                      isPM={isPM}
                     />
                   ))}
                 </div>
