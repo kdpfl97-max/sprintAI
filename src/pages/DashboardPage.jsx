@@ -701,7 +701,7 @@ function PMHome({ currentUser, sprint, onSendNotification, teamMembers = [], upd
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
           <SectionTitle>번다운 차트</SectionTitle>
           <a href="/sprint/1/board" style={{ fontSize: 12, fontWeight: 600, color: '#2563EB', textDecoration: 'none' }}>
-            칸반 보드 →
+            진행 현황판 →
           </a>
         </div>
         <BurndownChart tasks={tasks} startDate={sprint.startDate} endDate={sprint.endDate} />
@@ -1020,7 +1020,7 @@ export default function DashboardPage() {
   if (!sprint?.status || sprint.status === 'completed') {
     return (
       <div style={{ display: 'flex', flexDirection: 'column', flex: 1, overflow: 'hidden' }}>
-        <Topbar title="홈" subtitle="진행 중인 계획 없음" />
+        <Topbar title="대시보드" subtitle="진행 중인 계획 없음" />
         <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 16, background: '#F4F5F7' }}>
           <div style={{ width: 60, height: 60, borderRadius: 18, background: '#EFF6FF', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 26 }}>📊</div>
           <div style={{ textAlign: 'center' }}>
@@ -1072,7 +1072,7 @@ export default function DashboardPage() {
         </div>
       )}
 
-      <Topbar title="홈" subtitle={subtitle}>
+      <Topbar title="대시보드" subtitle={subtitle}>
         {isPM && can.confirmSprint && sprint.status !== 'completed' && (
           <button onClick={() => setCloseModal(true)} style={{
             padding: '0 16px', height: 36, borderRadius: 10, fontSize: 13, fontWeight: 600,
