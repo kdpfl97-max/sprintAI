@@ -119,7 +119,7 @@ export default function CapturePage() {
       // API 실패 시 키워드 분석으로 폴백
       const analyzed = lines.map((line, idx) => ({
         id: idx, ...analyzeTask(line),
-        assignee: parseAssignee(line, members),
+        assignees: parseAssignees(line, members),
       }))
       setTasks(analyzed)
       setChecked(new Set(analyzed.map(t => t.id)))

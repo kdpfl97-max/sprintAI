@@ -43,7 +43,7 @@ function MemberForm({ initial = EMPTY_FORM, onSubmit, onCancel, title }) {
           </select>
         </div>
         <div>
-          <label style={labelStyle}>이번 계획 가용 시간 (h)</label>
+          <label style={labelStyle}>이번 계획 작업 가능 시간 (h)</label>
           <input type="number" min="0" max="160" style={inputStyle}
             value={form.capacity} onChange={e => set('capacity', Number(e.target.value))}
             onFocus={focusInput} onBlur={blurInput} />
@@ -113,7 +113,7 @@ export default function TeamPage() {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', flex: 1, overflow: 'hidden' }}>
-      <Topbar title="팀 관리" subtitle={`총 ${members.length}명 · 이번 계획 가용 시간 ${totalCapacity}시간`}>
+      <Topbar title="팀 관리" subtitle={`총 ${members.length}명 · 이번 계획 작업 가능 시간 ${totalCapacity}시간`}>
         {isPM && (
           <button onClick={() => setShowInvite(true)} style={btnPrimary} className="btn-press">
             + 팀원 초대
@@ -139,7 +139,7 @@ export default function TeamPage() {
         <div style={{ display: 'grid', gridTemplateColumns: isMobile ? 'repeat(2,1fr)' : 'repeat(4,1fr)', gap: isMobile ? 10 : 14 }}>
           {[
             { label: '팀원 수',           value: members.length, unit: '명', sub: '전체 활성' },
-            { label: '총 가용 시간',       value: totalCapacity,  unit: 'h',  sub: '이번 계획 기준' },
+            { label: '총 작업 가능 시간',   value: totalCapacity,  unit: 'h',  sub: '이번 계획 기준' },
             { label: '현재 계획 태스크',   value: totalTasks,  unit: '개', sub: `완료 ${doneCount}개` },
             { label: '팀 평균 완료율',    value: completionPct,  unit: '%',  sub: sprint.name },
           ].map(({ label, value, unit, sub }) => (
@@ -198,7 +198,7 @@ export default function TeamPage() {
                   {/* 지표 */}
                   <div style={{ display: 'flex', width: isMobile ? '100%' : 'auto', borderTop: isMobile ? '1px solid #E8EAED' : 'none', paddingTop: isMobile ? 10 : 0 }}>
                   {[
-                    { label: '가용 시간', value: member.capacity, unit: 'h' },
+                    { label: '작업 가능 시간', value: member.capacity, unit: 'h' },
                     { label: '태스크', value: `${stats.done}/${stats.total}`, unit: '' },
                     { label: '완료 작업량', value: stats.doneSp, unit: `/${stats.sp}`, valueColor: member.color },
                   ].map(({ label, value, unit, valueColor }) => (

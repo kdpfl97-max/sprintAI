@@ -473,15 +473,14 @@ function PlanTaskCard({ item, recommended, members, onRemove, onSave, onDetail, 
             </div>
           ))}
 
-          {/* 추천 담당자 */}
+          {/* 추천 담당자 — 클릭하면 수락, X는 거절 */}
           {recommended.map(m => (
-            <div key={m.id} style={{ display: 'flex', alignItems: 'center', gap: 3, padding: '2px 4px 2px 3px', borderRadius: 9999, background: '#EDE9FE', border: '1px solid #DDD6FE' }}>
+            <div key={m.id} onClick={() => onAccept(item.id, m)} title="클릭해서 추천 수락"
+              style={{ display: 'flex', alignItems: 'center', gap: 3, padding: '2px 4px 2px 3px', borderRadius: 9999, background: '#EDE9FE', border: '1px solid #DDD6FE', cursor: 'pointer' }}>
               <div style={{ width: 14, height: 14, borderRadius: '50%', background: m.color, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 7, fontWeight: 700, color: '#fff' }}>{m.initials}</div>
               <span style={{ fontSize: 10, fontWeight: 600, color: '#6D28D9' }}>{m.name}</span>
               <span style={{ fontSize: 9, color: '#6B7280', margin: '0 1px' }}>🤖</span>
-              <button onClick={() => onAccept(item.id, m)}
-                style={{ padding: '0 4px', fontSize: 10, fontWeight: 700, borderRadius: 4, border: 'none', background: '#7C3AED', color: '#fff', cursor: 'pointer', lineHeight: '16px' }}>✓</button>
-              <button onClick={() => onDismiss(item.id, m.id)}
+              <button onClick={e => { e.stopPropagation(); onDismiss(item.id, m.id) }}
                 style={{ padding: '0 4px', fontSize: 10, borderRadius: 4, border: '1px solid #DDD6FE', background: '#fff', color: '#9CA3AF', cursor: 'pointer', lineHeight: '16px' }}>✕</button>
             </div>
           ))}
@@ -755,104 +754,109 @@ export default function SprintBuilderPage() {
             </div>
           </div>
 
-          {/* 2단계: 선택된 태스크 목록 */}
-          <div style={{ ...card, padding: 20 }}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
-              <p style={{ fontSize: 14, fontWeight: 700, color: '#111827' }}>② 이번 계획 태스크</p>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <span style={{ fontSize: 12, fontWeight: 600, color: '#2563EB', background: '#EFF6FF', border: '1px solid #BFDBFE', padding: '3px 10px', borderRadius: 9999 }}>{selected.size}개 · {selectedSP}시간</span>
-                {selectedItems.length > 0 && (
-                  <button onClick={autoSuggestAll}
-                    style={{ padding: '5px 12px', fontSize: 12, fontWeight: 600, border: '1px solid #DDD6FE', borderRadius: 9999, background: Object.keys(suggestedMap).length > 0 ? '#EDE9FE' : '#fff', color: '#7C3AED', cursor: 'pointer' }}>
-                    🤖 담당자 자동 추천
-                  </button>
-                )}
-                <button onClick={() => navigate('/backlog')}
-                  style={{ padding: '5px 12px', fontSize: 12, fontWeight: 600, border: '1px solid #E8EAED', borderRadius: 9999, background: '#fff', color: '#4B5563', cursor: 'pointer' }}>
-                  + 전체 할일에서 추가
-                </button>
-              </div>
-            </div>
+          {/* 2·3단계: 작업 가능 시간(좌 20%) + 태스크 목록(우 80%) */}
+          <div style={{ display: 'flex', flexDirection: isMobile ? 'column' : 'row', gap: 16, alignItems: 'flex-start' }}>
 
-            {selectedItems.length === 0 ? (
-              <div style={{ textAlign: 'center', padding: '40px 0', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10 }}>
-                <div style={{ width: 44, height: 44, borderRadius: 12, background: '#F3F4F6', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 20 }}>📋</div>
-                <p style={{ fontSize: 14, fontWeight: 600, color: '#374151' }}>아직 추가된 태스크가 없어요</p>
-                <p style={{ fontSize: 13, color: '#9CA3AF' }}>전체 할일에서 <strong>+ 계획에 추가</strong> 버튼을 눌러보세요</p>
-                <button onClick={() => navigate('/backlog')}
-                  style={{ marginTop: 4, padding: '9px 20px', borderRadius: 10, border: 'none', background: '#2563EB', color: 'white', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
-                  전체 할일 보러 가기
-                </button>
+            {/* 2단계: Capacity */}
+            <div style={{ ...card, padding: 20, width: isMobile ? '100%' : '20%', flexShrink: 0 }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16, flexWrap: 'wrap', gap: 8 }}>
+                <p style={{ fontSize: 14, fontWeight: 700, color: '#111827' }}>② 팀 작업 가능 시간</p>
+                <div style={{ display: 'flex', gap: 4 }}>
+                  {[
+                    { val: true,  label: '평일만', tip: `월~금 기준 · ${countDays(meta.startDate, meta.endDate, true)}일 × 8h = ${countDays(meta.startDate, meta.endDate, true) * 8}시간` },
+                    { val: false, label: '매일',   tip: `주말 포함 · ${countDays(meta.startDate, meta.endDate, false)}일 × 8h = ${countDays(meta.startDate, meta.endDate, false) * 8}시간` },
+                  ].map(({ val, label, tip }) => (
+                    <div key={label} style={{ position: 'relative' }} className="tooltip-wrap">
+                      <button
+                        onClick={() => setWeekdayOnly(val)}
+                        title={tip}
+                        style={{ padding: '4px 12px', fontSize: 12, fontWeight: 600, borderRadius: 8, border: `1px solid ${weekdayOnly === val ? '#2563EB' : '#E8EAED'}`, background: weekdayOnly === val ? '#EFF6FF' : '#fff', color: weekdayOnly === val ? '#2563EB' : '#6B7280', cursor: 'pointer' }}>
+                        {label}
+                      </button>
+                    </div>
+                  ))}
+                </div>
               </div>
-            ) : (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                {selectedItems.map(item => (
-                  <PlanTaskCard
-                    key={item.id}
-                    item={item}
-                    recommended={suggestedMap[item.id] || []}
-                    members={members}
-                    onRemove={() => removePlan(item.id)}
-                    onSave={patch => updateBacklog(item.id, patch)}
-                    onDetail={() => setDetailItem(item)}
-                    onAccept={acceptSuggestion}
-                    onDismiss={dismissSuggestion}
-                    onToggleAssignee={toggleAssignee}
-                  />
-                ))}
-              </div>
-            )}
-          </div>
-
-          {/* 3단계: Capacity */}
-          <div style={{ ...card, padding: 20 }}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
-              <p style={{ fontSize: 14, fontWeight: 700, color: '#111827' }}>③ 팀 Capacity 설정</p>
-              <div style={{ display: 'flex', gap: 4 }}>
-                {[
-                  { val: true,  label: '평일만', tip: `월~금 기준 · ${countDays(meta.startDate, meta.endDate, true)}일 × 8h = ${countDays(meta.startDate, meta.endDate, true) * 8}시간` },
-                  { val: false, label: '매일',   tip: `주말 포함 · ${countDays(meta.startDate, meta.endDate, false)}일 × 8h = ${countDays(meta.startDate, meta.endDate, false) * 8}시간` },
-                ].map(({ val, label, tip }) => (
-                  <div key={label} style={{ position: 'relative' }} className="tooltip-wrap">
-                    <button
-                      onClick={() => setWeekdayOnly(val)}
-                      title={tip}
-                      style={{ padding: '4px 12px', fontSize: 12, fontWeight: 600, borderRadius: 8, border: `1px solid ${weekdayOnly === val ? '#2563EB' : '#E8EAED'}`, background: weekdayOnly === val ? '#EFF6FF' : '#fff', color: weekdayOnly === val ? '#2563EB' : '#6B7280', cursor: 'pointer' }}>
-                      {label}
-                    </button>
-                  </div>
-                ))}
-              </div>
-            </div>
-            <div style={{ display: 'grid', gridTemplateColumns: isMobile ? 'repeat(2, 1fr)' : 'repeat(4, 1fr)', gap: 12 }}>
-              {teamMembers.map(m => {
-                const maxH = countDays(meta.startDate, meta.endDate, weekdayOnly) * 8 || m.total
-                const h = capacity[m.id] ?? maxH
-                const pct = Math.round((h / maxH) * 100)
-                return (
-                  <div key={m.id} style={{ border: '1px solid #E8EAED', borderRadius: 14, padding: '14px 14px 12px' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14 }}>
-                      <div style={{ width: 36, height: 36, borderRadius: '50%', background: m.color, color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, fontWeight: 700 }}>{m.initials}</div>
-                      <div>
-                        <p style={{ fontSize: 13, fontWeight: 600, color: '#111827' }}>{m.name}</p>
-                        <p style={{ fontSize: 11, color: '#9CA3AF' }}>{m.role}</p>
+              <div style={{ display: 'grid', gridTemplateColumns: isMobile ? 'repeat(2, 1fr)' : '1fr', gap: 12 }}>
+                {teamMembers.map(m => {
+                  const maxH = countDays(meta.startDate, meta.endDate, weekdayOnly) * 8 || m.total
+                  const h = capacity[m.id] ?? maxH
+                  const pct = Math.round((h / maxH) * 100)
+                  return (
+                    <div key={m.id} style={{ border: '1px solid #E8EAED', borderRadius: 14, padding: '14px 14px 12px' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14 }}>
+                        <div style={{ width: 36, height: 36, borderRadius: '50%', background: m.color, color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, fontWeight: 700 }}>{m.initials}</div>
+                        <div>
+                          <p style={{ fontSize: 13, fontWeight: 600, color: '#111827' }}>{m.name}</p>
+                          <p style={{ fontSize: 11, color: '#9CA3AF' }}>{m.role}</p>
+                        </div>
                       </div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, marginBottom: 6 }}>
+                        <span style={{ color: '#9CA3AF' }}>작업 가능 시간</span>
+                        <span style={{ fontWeight: 600, color: '#4B5563' }}>{h}시간 / {maxH}시간</span>
+                      </div>
+                      <input type="range" min="0" max={maxH} step="4" value={h}
+                        onChange={e => {
+                          const v = Number(e.target.value)
+                          setCapacity(p => ({ ...p, [m.id]: v }))
+                          updateMember(m.id, { capacity: v })
+                        }}
+                        style={{ width: '100%', accentColor: m.color, cursor: 'pointer' }} />
                     </div>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, marginBottom: 6 }}>
-                      <span style={{ color: '#9CA3AF' }}>가용 시간</span>
-                      <span style={{ fontWeight: 600, color: '#4B5563' }}>{h}시간 / {maxH}시간</span>
-                    </div>
-                    <input type="range" min="0" max={maxH} step="4" value={h}
-                      onChange={e => {
-                        const v = Number(e.target.value)
-                        setCapacity(p => ({ ...p, [m.id]: v }))
-                        updateMember(m.id, { capacity: v })
-                      }}
-                      style={{ width: '100%', accentColor: m.color, cursor: 'pointer' }} />
-                  </div>
-                )
-              })}
+                  )
+                })}
+              </div>
             </div>
+
+            {/* 3단계: 선택된 태스크 목록 */}
+            <div style={{ ...card, padding: 20, flex: 1, minWidth: 0 }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14, flexWrap: 'wrap', gap: 8 }}>
+                <p style={{ fontSize: 14, fontWeight: 700, color: '#111827' }}>③ 이번 계획 태스크</p>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <span style={{ fontSize: 12, fontWeight: 600, color: '#2563EB', background: '#EFF6FF', border: '1px solid #BFDBFE', padding: '3px 10px', borderRadius: 9999 }}>{selected.size}개 · {selectedSP}시간</span>
+                  {selectedItems.length > 0 && (
+                    <button onClick={autoSuggestAll}
+                      style={{ padding: '5px 12px', fontSize: 12, fontWeight: 600, border: '1px solid #DDD6FE', borderRadius: 9999, background: Object.keys(suggestedMap).length > 0 ? '#EDE9FE' : '#fff', color: '#7C3AED', cursor: 'pointer' }}>
+                      🤖 담당자 자동 추천
+                    </button>
+                  )}
+                  <button onClick={() => navigate('/backlog')}
+                    style={{ padding: '5px 12px', fontSize: 12, fontWeight: 600, border: '1px solid #E8EAED', borderRadius: 9999, background: '#fff', color: '#4B5563', cursor: 'pointer' }}>
+                    + 전체 할일에서 추가
+                  </button>
+                </div>
+              </div>
+
+              {selectedItems.length === 0 ? (
+                <div style={{ textAlign: 'center', padding: '40px 0', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10 }}>
+                  <div style={{ width: 44, height: 44, borderRadius: 12, background: '#F3F4F6', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 20 }}>📋</div>
+                  <p style={{ fontSize: 14, fontWeight: 600, color: '#374151' }}>아직 추가된 태스크가 없어요</p>
+                  <p style={{ fontSize: 13, color: '#9CA3AF' }}>전체 할일에서 <strong>+ 계획에 추가</strong> 버튼을 눌러보세요</p>
+                  <button onClick={() => navigate('/backlog')}
+                    style={{ marginTop: 4, padding: '9px 20px', borderRadius: 10, border: 'none', background: '#2563EB', color: 'white', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
+                    전체 할일 보러 가기
+                  </button>
+                </div>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                  {selectedItems.map(item => (
+                    <PlanTaskCard
+                      key={item.id}
+                      item={item}
+                      recommended={suggestedMap[item.id] || []}
+                      members={members}
+                      onRemove={() => removePlan(item.id)}
+                      onSave={patch => updateBacklog(item.id, patch)}
+                      onDetail={() => setDetailItem(item)}
+                      onAccept={acceptSuggestion}
+                      onDismiss={dismissSuggestion}
+                      onToggleAssignee={toggleAssignee}
+                    />
+                  ))}
+                </div>
+              )}
+            </div>
+
           </div>
 
         </>)}
