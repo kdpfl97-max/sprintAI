@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import Topbar from '../components/layout/Topbar'
 import { useBacklogStore } from '../store/useBacklogStore'
@@ -77,6 +77,72 @@ export default function CapturePage() {
   const [checked, setChecked] = useState(new Set())
   const [loading, setLoading] = useState(false)
   const [added,   setAdded]   = useState(false)
+
+  // @멘션 자동완성
+  const [mentionQuery, setMentionQuery] = useState(null)
+  const [mentionIndex, setMentionIndex] = useState(0)
+  const textareaRef = useRef(null)
+  const mentionWrapRef = useRef(null)
+
+  const mentionCandidates = mentionQuery === null ? [] :
+    members.filter(m => m.name.toLowerCase().includes(mentionQuery.toLowerCase())).slice(0, 5)
+
+  useEffect(() => { setMentionIndex(0) }, [mentionQuery])
+
+  useEffect(() => {
+    if (mentionQuery === null) return
+    function onClickOutside(e) {
+      if (mentionWrapRef.current && !mentionWrapRef.current.contains(e.target)) setMentionQuery(null)
+    }
+    document.addEventListener('mousedown', onClickOutside)
+    return () => document.removeEventListener('mousedown', onClickOutside)
+  }, [mentionQuery])
+
+  function detectMention(text, caret) {
+    const upToCaret = text.slice(0, caret)
+    const match = upToCaret.match(/@([^\s@]*)$/)
+    setMentionQuery(match ? match[1] : null)
+  }
+
+  function handleInputChange(e) {
+    const el = e.target
+    setInput(el.value)
+    setAdded(false)
+    detectMention(el.value, el.selectionStart)
+  }
+
+  function insertMention(member) {
+    const el = textareaRef.current
+    if (!el) return
+    const caret = el.selectionStart
+    const upToCaret = input.slice(0, caret)
+    const afterCaret = input.slice(caret)
+    const replaced = upToCaret.replace(/@([^\s@]*)$/, `@${member.name} `)
+    const nextValue = replaced + afterCaret
+    setInput(nextValue)
+    setMentionQuery(null)
+    requestAnimationFrame(() => {
+      el.focus()
+      const pos = replaced.length
+      el.setSelectionRange(pos, pos)
+    })
+  }
+
+  function handleTextareaKeyDown(e) {
+    if (mentionQuery === null || mentionCandidates.length === 0) return
+    if (e.key === 'ArrowDown') {
+      e.preventDefault()
+      setMentionIndex(i => (i + 1) % mentionCandidates.length)
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault()
+      setMentionIndex(i => (i - 1 + mentionCandidates.length) % mentionCandidates.length)
+    } else if (e.key === 'Enter' || e.key === 'Tab') {
+      e.preventDefault()
+      insertMention(mentionCandidates[mentionIndex])
+    } else if (e.key === 'Escape') {
+      setMentionQuery(null)
+    }
+  }
 
   async function handleAnalyze() {
     const lines = input.split('\n').map(l => l.trim()).filter(Boolean)
@@ -203,21 +269,57 @@ export default function CapturePage() {
           <p style={{ fontSize: 13, color: '#9CA3AF', marginBottom: 14, lineHeight: '20px' }}>
             한 줄에 하나씩 입력하세요. 정제되지 않은 텍스트도 괜찮아요.
           </p>
-          <textarea
-            style={{
-              width: '100%', height: 160,
-              padding: '12px 14px', boxSizing: 'border-box',
-              border: '1px solid #E8EAED', borderRadius: 14,
-              background: '#F4F5F7', fontSize: 13, color: '#111827',
-              lineHeight: '22px', resize: 'none', outline: 'none',
-              fontFamily: 'inherit',
-            }}
-            placeholder={'구글 로그인 붙여야 함 @박준혁\n백로그 화면에서 필터 기능 추가\n디자인 시안 만들기 최지은\nAPI 에러 처리 로직 추가'}
-            value={input}
-            onChange={e => { setInput(e.target.value); setAdded(false) }}
-            onFocus={e => { e.target.style.borderColor = '#BFDBFE'; e.target.style.background = '#FFF' }}
-            onBlur={e => { e.target.style.borderColor = '#E8EAED'; e.target.style.background = '#F4F5F7' }}
-          />
+          <div ref={mentionWrapRef} style={{ position: 'relative' }}>
+            <textarea
+              ref={textareaRef}
+              style={{
+                width: '100%', height: 160,
+                padding: '12px 14px', boxSizing: 'border-box',
+                border: '1px solid #E8EAED', borderRadius: 14,
+                background: '#F4F5F7', fontSize: 13, color: '#111827',
+                lineHeight: '22px', resize: 'none', outline: 'none',
+                fontFamily: 'inherit',
+              }}
+              placeholder={'구글 로그인 붙여야 함 @박준혁\n백로그 화면에서 필터 기능 추가\n디자인 시안 만들기 최지은\nAPI 에러 처리 로직 추가'}
+              value={input}
+              onChange={handleInputChange}
+              onKeyDown={handleTextareaKeyDown}
+              onClick={e => detectMention(e.target.value, e.target.selectionStart)}
+              onFocus={e => { e.target.style.borderColor = '#BFDBFE'; e.target.style.background = '#FFF' }}
+              onBlur={e => { e.target.style.borderColor = '#E8EAED'; e.target.style.background = '#F4F5F7' }}
+            />
+
+            {/* @멘션 자동완성 드롭다운 */}
+            {mentionQuery !== null && mentionCandidates.length > 0 && (
+              <div style={{
+                position: 'absolute', top: '100%', left: 0, right: 0, marginTop: 6, zIndex: 30,
+                background: '#fff', border: '1px solid #E8EAED', borderRadius: 12,
+                boxShadow: '0 8px 24px rgba(17,24,39,0.14)', padding: 6,
+                maxHeight: 240, overflowY: 'auto',
+              }}>
+                <p style={{ fontSize: 11, fontWeight: 600, color: '#9CA3AF', padding: '4px 10px 6px' }}>팀원에게 할당</p>
+                {mentionCandidates.map((m, i) => (
+                  <div key={m.id}
+                    onMouseDown={e => { e.preventDefault(); insertMention(m) }}
+                    onMouseEnter={() => setMentionIndex(i)}
+                    style={{
+                      display: 'flex', alignItems: 'center', gap: 10,
+                      padding: '9px 10px', borderRadius: 8, cursor: 'pointer',
+                      background: i === mentionIndex ? '#EFF6FF' : 'transparent',
+                    }}>
+                    <div style={{
+                      width: 26, height: 26, borderRadius: '50%', flexShrink: 0,
+                      background: m.color, color: '#fff',
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      fontSize: 11, fontWeight: 700,
+                    }}>{m.initials}</div>
+                    <span style={{ fontSize: 13, fontWeight: 600, color: '#111827' }}>{m.name}</span>
+                    <span style={{ fontSize: 11, color: '#9CA3AF', marginLeft: 'auto' }}>{m.role}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 12 }}>
             <span style={{ fontSize: 12, color: '#9CA3AF' }}>{lineCount}개 항목</span>
             <button onClick={handleAnalyze} disabled={loading || !input.trim()}
