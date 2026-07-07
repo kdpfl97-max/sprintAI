@@ -68,6 +68,41 @@ function TaskCard({ task, allTasks, onMove, onProgressChange, onNoteChange, onOu
   const overdue  = isOverdue(task.dueDate)
   const hasDue   = !!task.dueDate && task.status !== 'done'
 
+  function renderOutputLink() {
+    return task.outputLink ? (
+      <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 10px', borderRadius: 8, background: '#F0FDF9', border: '1px solid #A7F3D0' }}>
+        <span style={{ fontSize: 11 }}>🔗</span>
+        <a href={task.outputLink} target="_blank" rel="noreferrer"
+          style={{ fontSize: 11, fontWeight: 600, color: '#059669', textDecoration: 'none', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+          산출물 보기
+        </a>
+        {isOwner && (
+          <button onClick={() => setEditOutput(true)}
+            style={{ fontSize: 10, color: '#9CA3AF', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>수정</button>
+        )}
+      </div>
+    ) : isOwner ? (
+      editOutput ? (
+        <div style={{ display: 'flex', gap: 6 }}>
+          <input value={outputLink} onChange={e => setOutputLink(e.target.value)}
+            placeholder="산출물 링크 (URL)" autoFocus
+            style={{ flex: 1, fontSize: 12, padding: '6px 10px', borderRadius: 8, border: '1px solid #BFDBFE', outline: 'none' }} />
+          <button onClick={handleOutputSave}
+            style={{ padding: '0 10px', fontSize: 11, fontWeight: 600, borderRadius: 8, border: 'none', background: '#059669', color: '#fff', cursor: 'pointer' }}>저장</button>
+          <button onClick={() => setEditOutput(false)}
+            style={{ padding: '0 10px', fontSize: 11, borderRadius: 8, border: '1px solid #E8EAED', background: '#F4F5F7', color: '#6B7280', cursor: 'pointer' }}>취소</button>
+        </div>
+      ) : (
+        <button onClick={() => setEditOutput(true)}
+          style={{ width: '100%', padding: '6px', fontSize: 11, fontWeight: 600, borderRadius: 8, border: '1.5px dashed #A7F3D0', background: 'transparent', color: '#059669', cursor: 'pointer' }}>
+          + 산출물 링크 등록
+        </button>
+      )
+    ) : (
+      <p style={{ fontSize: 11, color: '#9CA3AF' }}>산출물 링크 없음</p>
+    )
+  }
+
   return (
     <div
       onMouseEnter={() => setHovered(true)}
@@ -181,14 +216,18 @@ function TaskCard({ task, allTasks, onMove, onProgressChange, onNoteChange, onOu
                   저장
                 </button>
               </div>
+              <div style={{ marginTop: 8 }}>{renderOutputLink()}</div>
             </>
           ) : (
-            task.note && (
-              <p style={{
-                marginTop: 8, padding: '7px 10px', fontSize: 12, color: '#4B5563',
-                background: '#F4F5F7', borderRadius: 10, lineHeight: '18px',
-              }}>{task.note}</p>
-            )
+            <>
+              {task.note && (
+                <p style={{
+                  marginTop: 8, padding: '7px 10px', fontSize: 12, color: '#4B5563',
+                  background: '#F4F5F7', borderRadius: 10, lineHeight: '18px',
+                }}>{task.note}</p>
+              )}
+              {task.outputLink && <div style={{ marginTop: 8 }}>{renderOutputLink()}</div>}
+            </>
           )}
         </div>
       )}
@@ -230,38 +269,7 @@ function TaskCard({ task, allTasks, onMove, onProgressChange, onNoteChange, onOu
             <span style={{ fontSize: 11, fontWeight: 700, color: '#10B981' }}>완료</span>
           </div>
           {/* 산출물 링크 */}
-          {task.outputLink ? (
-            <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 10px', borderRadius: 8, background: '#F0FDF9', border: '1px solid #A7F3D0' }}>
-              <span style={{ fontSize: 11 }}>🔗</span>
-              <a href={task.outputLink} target="_blank" rel="noreferrer"
-                style={{ fontSize: 11, fontWeight: 600, color: '#059669', textDecoration: 'none', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                산출물 보기
-              </a>
-              {isOwner && (
-                <button onClick={() => setEditOutput(true)}
-                  style={{ fontSize: 10, color: '#9CA3AF', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>수정</button>
-              )}
-            </div>
-          ) : isOwner ? (
-            editOutput ? (
-              <div style={{ display: 'flex', gap: 6 }}>
-                <input value={outputLink} onChange={e => setOutputLink(e.target.value)}
-                  placeholder="산출물 링크 (URL)" autoFocus
-                  style={{ flex: 1, fontSize: 12, padding: '6px 10px', borderRadius: 8, border: '1px solid #BFDBFE', outline: 'none' }} />
-                <button onClick={handleOutputSave}
-                  style={{ padding: '0 10px', fontSize: 11, fontWeight: 600, borderRadius: 8, border: 'none', background: '#059669', color: '#fff', cursor: 'pointer' }}>저장</button>
-                <button onClick={() => setEditOutput(false)}
-                  style={{ padding: '0 10px', fontSize: 11, borderRadius: 8, border: '1px solid #E8EAED', background: '#F4F5F7', color: '#6B7280', cursor: 'pointer' }}>취소</button>
-              </div>
-            ) : (
-              <button onClick={() => setEditOutput(true)}
-                style={{ width: '100%', padding: '6px', fontSize: 11, fontWeight: 600, borderRadius: 8, border: '1.5px dashed #A7F3D0', background: 'transparent', color: '#059669', cursor: 'pointer' }}>
-                + 산출물 링크 등록
-              </button>
-            )
-          ) : (
-            <p style={{ fontSize: 11, color: '#9CA3AF' }}>산출물 링크 없음</p>
-          )}
+          {renderOutputLink()}
         </div>
       )}
 

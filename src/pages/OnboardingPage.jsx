@@ -113,7 +113,8 @@ export default function OnboardingPage() {
               onMouseEnter={e => e.currentTarget.style.borderColor = '#1D4ED8'}
               onMouseLeave={e => e.currentTarget.style.borderColor = '#E8EAED'}>
                 <p style={{ fontSize: 14, fontWeight: 700, color: '#111827', marginBottom: 4 }}>🏗️ PM으로 시작하기</p>
-                <p style={{ fontSize: 12, color: '#9CA3AF' }}>팀을 만들고 이번 계획을 관리해요</p>
+                <p style={{ fontSize: 12, color: '#9CA3AF', marginBottom: 6 }}>팀을 만들고 이번 계획을 관리해요</p>
+                <p style={{ fontSize: 11, color: '#BCC3CE' }}>예: 프로젝트 매니저, 팀 리더</p>
               </button>
               <button onClick={() => setStep('join-code')} style={{
                 padding: '18px 20px', borderRadius: 14, border: '2px solid #E8EAED',
@@ -122,7 +123,8 @@ export default function OnboardingPage() {
               onMouseEnter={e => e.currentTarget.style.borderColor = '#1D4ED8'}
               onMouseLeave={e => e.currentTarget.style.borderColor = '#E8EAED'}>
                 <p style={{ fontSize: 14, fontWeight: 700, color: '#111827', marginBottom: 4 }}>🤝 팀원으로 참여하기</p>
-                <p style={{ fontSize: 12, color: '#9CA3AF' }}>PM에게 받은 팀 코드로 합류해요</p>
+                <p style={{ fontSize: 12, color: '#9CA3AF', marginBottom: 6 }}>PM에게 받은 팀 코드로 합류해요</p>
+                <p style={{ fontSize: 11, color: '#BCC3CE' }}>예: 디자이너, 개발자, 마케터, QA</p>
               </button>
             </div>
           </>

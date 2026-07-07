@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { useNotificationStore } from './useNotificationStore'
 
 const STORAGE_KEY = 'sprintai_sprint'
 
@@ -40,6 +41,7 @@ function save(sprint) {
 
 export function useSprintStore() {
   const [sprint, setSprint] = useState(load)
+  const { push: pushNotif } = useNotificationStore()
 
   useEffect(() => { save(sprint) }, [sprint])
 
@@ -71,6 +73,17 @@ export function useSprintStore() {
 
   /** 카드 상태 변경 (todo → inprogress → done) */
   function moveTask(taskId, newStatus) {
+    if (newStatus === 'done') {
+      const unblocked = sprint.tasks.filter(t => t.blocker === taskId && t.status !== 'done' && t.member)
+      const finished = sprint.tasks.find(t => t.id === taskId)
+      unblocked.forEach(t => {
+        pushNotif({
+          icon: '🚀',
+          title: `시작 가능 — ${t.title}`,
+          body: `${t.member.name}님, "${finished?.title || '선행 업무'}"가 완료되어 이제 "${t.title}"를 시작할 수 있어요.`,
+        })
+      })
+    }
     setSprint(prev => ({
       ...prev,
       tasks: prev.tasks.map(t =>

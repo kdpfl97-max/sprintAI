@@ -7,6 +7,7 @@ import { useSprintStore } from '../store/useSprintStore'
 import { useAuthStore } from '../store/useAuthStore'
 import { useTeamStore } from '../store/useTeamStore'
 import { useSprintPlanStore } from '../store/useSprintPlanStore'
+import { useCapacityHistoryStore } from '../store/useCapacityHistoryStore'
 import { callClaude } from '../utils/claude'
 import TaskDetailModal from '../components/TaskDetailModal'
 
@@ -558,6 +559,7 @@ export default function SprintBuilderPage() {
   const { confirmSprint } = useSprintStore()
   const { can } = useAuthStore()
   const { members, updateMember } = useTeamStore()
+  const { getMemberStats } = useCapacityHistoryStore()
   const { selected, toggle: planToggle, remove: removePlan, clear: clearPlan } = useSprintPlanStore()
 
   // 마감일 7일 이내 아이템 자동 추가 (완료/블로커 제외)
@@ -755,10 +757,10 @@ export default function SprintBuilderPage() {
           </div>
 
           {/* 2·3단계: 작업 가능 시간(좌 20%) + 태스크 목록(우 80%) */}
-          <div style={{ display: 'flex', flexDirection: isMobile ? 'column' : 'row', gap: 16, alignItems: 'flex-start' }}>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 16, alignItems: 'flex-start' }}>
 
             {/* 2단계: Capacity */}
-            <div style={{ ...card, padding: 20, width: isMobile ? '100%' : '20%', flexShrink: 0 }}>
+            <div style={{ ...card, padding: 20, flex: '35 1 260px', minWidth: 260 }}>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16, flexWrap: 'wrap', gap: 8 }}>
                 <p style={{ fontSize: 14, fontWeight: 700, color: '#111827' }}>② 팀 작업 가능 시간</p>
                 <div style={{ display: 'flex', gap: 4 }}>
@@ -777,11 +779,13 @@ export default function SprintBuilderPage() {
                   ))}
                 </div>
               </div>
-              <div style={{ display: 'grid', gridTemplateColumns: isMobile ? 'repeat(2, 1fr)' : '1fr', gap: 12 }}>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 12 }}>
                 {teamMembers.map(m => {
                   const maxH = countDays(meta.startDate, meta.endDate, weekdayOnly) * 8 || m.total
                   const h = capacity[m.id] ?? maxH
                   const pct = Math.round((h / maxH) * 100)
+                  const stats = getMemberStats(m.name, 3)
+                  const suggestOveradjust = stats && stats.rate >= 20
                   return (
                     <div key={m.id} style={{ border: '1px solid #E8EAED', borderRadius: 14, padding: '14px 14px 12px' }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14 }}>
@@ -802,6 +806,21 @@ export default function SprintBuilderPage() {
                           updateMember(m.id, { capacity: v })
                         }}
                         style={{ width: '100%', accentColor: m.color, cursor: 'pointer' }} />
+
+                      {suggestOveradjust && (
+                        <div style={{ marginTop: 10, padding: '8px 10px', borderRadius: 10, background: '#FFFBEB', border: '1px solid #FDE68A' }}>
+                          <p style={{ fontSize: 11, color: '#92400E', lineHeight: 1.5, marginBottom: 6 }}>
+                            ⏰ 최근 {stats.sprints}개 계획 평균 일정 초과율 <strong>{stats.rate}%</strong> — 캐파를 낮춰볼까요?
+                          </p>
+                          <button onClick={() => {
+                            const adjusted = Math.max(0, Math.round(maxH * (1 - stats.rate / 100) / 4) * 4)
+                            setCapacity(p => ({ ...p, [m.id]: adjusted }))
+                            updateMember(m.id, { capacity: adjusted })
+                          }} style={{ fontSize: 11, fontWeight: 600, padding: '4px 10px', borderRadius: 8, border: '1px solid #FDE68A', background: '#fff', color: '#92400E', cursor: 'pointer' }}>
+                            {stats.rate}% 낮춰 적용
+                          </button>
+                        </div>
+                      )}
                     </div>
                   )
                 })}
@@ -809,7 +828,7 @@ export default function SprintBuilderPage() {
             </div>
 
             {/* 3단계: 선택된 태스크 목록 */}
-            <div style={{ ...card, padding: 20, flex: 1, minWidth: 0 }}>
+            <div style={{ ...card, padding: 20, flex: '65 1 380px', minWidth: 0 }}>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14, flexWrap: 'wrap', gap: 8 }}>
                 <p style={{ fontSize: 14, fontWeight: 700, color: '#111827' }}>③ 이번 계획 태스크</p>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>

@@ -231,6 +231,7 @@ export default function AppLayout() {
   const [showProfile, setShowProfile] = useState(false)
   const [showDrawer, setShowDrawer] = useState(false)
   const location = useLocation()
+  const navigate = useNavigate()
 
   const userRole = !currentUser ? 'guest' : currentUser.role === 'PM' ? 'PM' : 'member'
   const visibleNav = MOBILE_NAV.filter(n => n.roles.includes(userRole))
@@ -252,7 +253,10 @@ export default function AppLayout() {
       <div style={{ height: 48, flexShrink: 0, background: C.bg, display: 'flex', alignItems: 'center', paddingInline: 12, gap: 8, borderBottom: `1px solid ${C.divider}` }}>
         {/* 좌측 여백 균형용 */}
         <div style={{ width: 36 }} />
-        <p style={{ flex: 1, textAlign: 'center', fontSize: 15, fontWeight: 800, color: C.textMain, letterSpacing: '-0.3px' }}>SprintAI</p>
+        <button onClick={() => navigate('/dashboard')} style={{
+          flex: 1, textAlign: 'center', fontSize: 15, fontWeight: 800, color: C.textMain, letterSpacing: '-0.3px',
+          border: 'none', background: 'transparent', padding: 0, cursor: 'pointer',
+        }}>SprintAI</button>
         <button onClick={() => setShowDrawer(true)} style={{ width: 36, height: 36, border: 'none', background: 'rgba(255,255,255,0.12)', borderRadius: 10, cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 4, flexShrink: 0 }}>
           <div style={{ width: 16, height: 2, background: '#fff', borderRadius: 1 }} />
           <div style={{ width: 16, height: 2, background: '#fff', borderRadius: 1 }} />

@@ -67,7 +67,10 @@ export default function Sidebar() {
 
       {/* 로고 */}
       <div style={{ padding: '20px 20px 16px', borderBottom: `1px solid ${C.divider}` }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+        <button onClick={() => navigate('/dashboard')} style={{
+          display: 'flex', alignItems: 'center', gap: 10,
+          border: 'none', background: 'transparent', padding: 0, cursor: 'pointer',
+        }}>
           <div style={{
             width: 32, height: 32, borderRadius: 10,
             background: 'rgba(255,255,255,0.2)',
@@ -75,7 +78,7 @@ export default function Sidebar() {
             color: C.textMain, fontSize: 15, fontWeight: 700,
           }}>S</div>
           <span style={{ fontSize: 17, fontWeight: 700, color: C.textMain, letterSpacing: -0.3 }}>SprintAI</span>
-        </div>
+        </button>
         <span style={{
           display: 'inline-block', marginTop: 8,
           fontSize: 11, fontWeight: 600,
