@@ -31,3 +31,12 @@ dist-ssr
 # Claude / Agent directories
 .agents/
 .claude/
+
+# Local restore/cache folders
+.latest-origin/
+.latest-refresh-*/
+.npm-cache/
+.local-preview-server.mjs
+src/src/
+public/public/
+.github/.github/
