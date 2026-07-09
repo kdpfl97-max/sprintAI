@@ -3,17 +3,30 @@ name: 쏘카
 design_system_name: SOCAR Frame 2.0
 slug: socar
 category: mobility
-last_updated: "2026-06-28"
+last_updated: "2026-07-07"
 created_at: "2026-05-22"
 ---
 
 # SOCAR Frame 2.0 — SprintAI 적용 디자인 시스템
 
+> ⚠️ 2026-07-02~07 모바일 브랜드 통일 작업 이후 원안(라이트 모드 전용, 이모지 금지, 그라디언트 금지)에서 벗어난 부분이 있다. 아래 "원안 대비 변경 사항"을 실제 기준으로 참고할 것.
+
 ## 핵심 원칙
 - "복잡함을 덜어내고 본질에 집중" — 더 뺄 것이 없을 때까지 덜어냄
-- 그라디언트·텍스처·이모지 아이콘 금지, 플랫 필 표면
+- 카드·버튼·인풋 등 콘텐츠 표면은 플랫 필 유지 (그라디언트·텍스처 금지)
 - 위계는 색이 아니라 **크기와 굵기**로 표현
-- 라이트 모드 전용 (다크 모드 없음)
+- 콘텐츠 영역은 라이트 모드 전용. 단 브랜드 표면(사이드바·모바일 헤더·랜딩 배경)은 네이비 다크를 허용 (아래 참고)
+
+## 원안 대비 변경 사항 (2026-07-02~07)
+
+| 항목 | 원안 | 실제 적용 | 사유 |
+|---|---|---|---|
+| 사이드바 배경 | `white` | `#1D4ED8` (네이비) | 모바일 상단 헤더·하단 탭바와 브랜드 색 통일 |
+| 로그인/온보딩 배경 | 그라디언트 금지 | `linear-gradient(150deg, #1D4ED8 → #1E40AF → #1e3a8a)` | 포트폴리오 랜딩 임팩트를 위한 의도적 예외 (콘텐츠 표면엔 미적용, 배경 전용) |
+| 아이콘 | 이모지 금지, 텍스트 레이블 | 상태·알림 아이콘에 이모지 사용 (🔍 검토 요청, 🚀 시작 가능, 📅 마감, ⏰ 일정 초과, 📌 일정 등) | 별도 아이콘 세트 없이 빠르게 의미 전달, 텍스트 레이블과 병기 |
+| Capacity 용어 | 가용 시간 | 작업 가능 시간 | 팀원 인터뷰 후 더 명확한 표현으로 재변경 |
+
+콘텐츠 표면(카드, 인풋, 버튼, 배지)은 원안 그대로 화이트 배경·플랫 필을 유지한다. 위 변경은 **브랜드 표면**(사이드바/헤더/랜딩)과 **아이콘 표기**에 한정된 예외다.
 
 ## Colors
 
@@ -190,27 +203,29 @@ padding: 20px
 /* 카드 헤더 구분선: 1px #F4F5F7 border-bottom */
 ```
 
-## Sidebar (SprintAI 적용)
+## Sidebar (SprintAI 적용 — 네이비 다크, 2026-07 갱신)
 
 ```
-bg: white / border-right: 1px #E8EAED
+bg: #1D4ED8 / 구분선: rgba(255,255,255,0.12)
 width: 240px
 
 Logo area:
-  padding: 20px / border-bottom: 1px #E8EAED
+  padding: 20px 20px 16px / border-bottom: 1px rgba(255,255,255,0.12)
+  클릭 시 /dashboard 이동
 
 Nav item:
-  height: 44px / padding: 0 12px / radius: 10px / gap: 10px
-  default: text #4B5563 / bg transparent
-  active:  text #2563EB / bg #EFF6FF / font-weight 600
-  hover:   bg #F4F5F7
+  text-main: #FFFFFF / text-sub: rgba(255,255,255,0.65)
+  active:  bg rgba(255,255,255,0.15)
+  hover:   bg rgba(255,255,255,0.08)
 
 Sprint card (하단):
-  bg: #F4F5F7 / radius: 12px / padding: 12px
+  bg: rgba(255,255,255,0.1) 계열 / 진행률 바는 흰색 progressFill
 
 User area:
-  border-top: 1px #E8EAED / padding: 16px
+  border-top: 1px rgba(255,255,255,0.12) / padding: 16px
 ```
+
+모바일 상단 헤더 + 하단 탭바도 동일 네이비(`#1D4ED8`)로 통일, 탭바 아이콘은 흰색 SVG.
 
 ## Priority 배지 (SprintAI 도메인)
 
@@ -276,10 +291,10 @@ error:   bg #FEE2E2 / text #DC2626 / icon 🔴
 - 시간 단위는 항상 "시간" (영문 "h" 금지, 비개발 직군 고려)
 
 **Don't**
-- 그라디언트 배경 금지 (버튼·카드·사이드바 모두)
+- 콘텐츠 표면(카드·버튼·인풋)에 그라디언트 금지 — 브랜드 표면(로그인/온보딩 배경)만 예외
 - 강한 드롭섀도 금지 (`box-shadow: 0 4px 12px ...` 금지)
-- 이모지를 아이콘으로 사용 금지 (텍스트 레이블로 대체)
-- 다크 배경 사이드바 금지 (라이트 모드 전용)
+- 이모지는 보조 신호로만 — 항상 텍스트 레이블과 함께 쓰고 이모지 단독으로 의미 전달하지 않기
+- 콘텐츠 카드·인풋에 다크 배경 금지 (사이드바/헤더 등 브랜드 표면 제외)
 - 보라색(`#8B5CF6`) 브랜드 accent 금지 (멤버 아바타 전용으로만 허용)
 - 접속 시간·체류 시간·생산성 점수 UI 금지 (프라이버시 원칙)
 - 팀원 순위·성과 비교 표시 금지
@@ -293,10 +308,14 @@ error:   bg #FEE2E2 / text #DC2626 / icon 🔴
 | AI 분석 / AI 분석 실행 | AI 계획 초안 만들기 | SprintBuilderPage |
 | AI 인사이트 | 확인이 필요한 항목 | SprintBuilderPage, DashboardPage |
 | 작업량 / SP | 예상 시간 + 난이도 | 전체 |
-| Capacity | 가용 시간 | SprintBuilderPage, TeamPage |
+| Capacity | 작업 가능 시간 | SprintBuilderPage, TeamPage |
 | h (단위) | 시간 | 전체 |
 | 태스크 없음 | 업무 없음 | BoardPage |
 | 추가 (버튼) | 등록 | RetroPage |
+| 대시보드 | 대시보드(웹) / 홈(모바일 탭바만) | Sidebar, AppLayout |
+| 스프린트 | 이번 계획 | 전체 |
+| 칸반 보드 | 진행 현황판 | Sidebar, BoardPage |
+| 아이디어 캡처 | 할일 작성 | Sidebar, CapturePage |
 
 ## 주요 데이터 필드 (2026-06-28 기준)
 

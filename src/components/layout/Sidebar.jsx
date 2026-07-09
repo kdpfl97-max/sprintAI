@@ -4,6 +4,7 @@ import { useAuthStore } from '../../store/useAuthStore'
 import { useTeamStore } from '../../store/useTeamStore'
 import { useSprintStore } from '../../store/useSprintStore'
 import { useNotificationStore } from '../../store/useNotificationStore'
+import StatusIcon from '../StatusIcon'
 
 // roles: 'PM' | 'member' | 'guest' (비로그인)
 const NAV_ITEMS = [
@@ -310,7 +311,9 @@ export default function Sidebar() {
                 onMouseEnter={e => e.currentTarget.style.background = '#F4F5F7'}
                 onMouseLeave={e => e.currentTarget.style.background = n.read ? '#fff' : '#EFF6FF'}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                    <span style={{ fontSize: 14, flexShrink: 0 }}>{n.icon || '📢'}</span>
+                    <div style={{ width: 26, height: 26, borderRadius: 8, background: '#F4F5F7', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                      <StatusIcon type={n.type} size={14} />
+                    </div>
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <p style={{ fontSize: 12, fontWeight: n.read ? 400 : 700, color: '#111827', marginBottom: 2 }}>{n.title}</p>
                       {n.body && <p style={{ fontSize: 11, color: '#6B7280', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{n.body}</p>}

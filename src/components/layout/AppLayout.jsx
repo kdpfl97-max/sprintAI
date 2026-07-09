@@ -5,6 +5,7 @@ import { useAuthStore } from '../../store/useAuthStore'
 import { useNotificationStore } from '../../store/useNotificationStore'
 import { useState } from 'react'
 import { useTeamStore } from '../../store/useTeamStore'
+import StatusIcon from '../StatusIcon'
 
 // 사이드바와 동일한 브랜드 컬러
 const C = {
@@ -64,7 +65,7 @@ const MOBILE_NAV = [
 
 function MobileProfileSheet({ onClose, currentUser, login, logout }) {
   const { members } = useTeamStore()
-  const { notifications, markAllRead, clear, unread } = useNotificationStore()
+  const { notifications, markRead, markAllRead, clear, unread } = useNotificationStore()
   const [tab, setTab] = useState('profile') // 'profile' | 'notif'
 
   return (
@@ -137,12 +138,14 @@ function MobileProfileSheet({ onClose, currentUser, login, logout }) {
               {notifications.length === 0 ? (
                 <p style={{ padding: '24px 0', fontSize: 13, color: C.textSub, textAlign: 'center' }}>알림이 없어요</p>
               ) : notifications.map(n => (
-                <div key={n.id} style={{
-                  padding: '10px 12px', borderRadius: 10, marginBottom: 4,
+                <div key={n.id} onClick={() => !n.read && markRead(n.id)} style={{
+                  padding: '10px 12px', borderRadius: 10, marginBottom: 4, cursor: n.read ? 'default' : 'pointer',
                   background: n.read ? 'rgba(255,255,255,0.04)' : 'rgba(255,255,255,0.1)',
                 }}>
                   <div style={{ display: 'flex', gap: 8, alignItems: 'flex-start' }}>
-                    <span style={{ fontSize: 14, flexShrink: 0 }}>{n.icon || '📢'}</span>
+                    <div style={{ width: 28, height: 28, borderRadius: 9, background: '#FFFFFF', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                      <StatusIcon type={n.type} size={15} />
+                    </div>
                     <div>
                       <p style={{ fontSize: 12, fontWeight: n.read ? 400 : 700, color: C.textMain }}>{n.title}</p>
                       {n.body && <p style={{ fontSize: 11, color: C.textSub, marginTop: 2 }}>{n.body}</p>}

@@ -1,127 +1,146 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
+import { supabase } from '../lib/supabaseClient'
+import { ensureTeamId } from '../lib/team'
 import { useNotificationStore } from './useNotificationStore'
 
-const STORAGE_KEY = 'sprintai_sprint'
+// 활성 스프린트가 없을 때의 기본값 — startDate/endDate는 null이면 화면 곳곳의 날짜 계산이 깨지므로 오늘 날짜로 채움
+const todayISO = () => new Date().toISOString().slice(0, 10)
+const EMPTY_SPRINT = { name: '', status: 'active', startDate: todayISO(), endDate: todayISO(), startedAt: null, tasks: [] }
 
-// 기본 스프린트 데이터 (빌더에서 확정하기 전 기본값)
-const DEFAULT_SPRINT = {
-  name: 'Sprint 1 — 핵심 AI 기능',
-  status: 'active',
-  startedAt: '2026-07-01T09:00:00.000Z',
-  startDate: '2026.07.01',
-  endDate: '2026.07.14',
-  tasks: [
-    { id: 't1',  title: '구글 소셜 로그인',             priority: 'Must',   estimatedHours: 8,  status: 'done',       member: { name: '박준혁', color: '#2E75B6', initials: '박' }, progress: 100, startDate: '2026-07-01', dueDate: '2026-07-02', blocker: null },
-    { id: 't2',  title: '팀 생성 API',                  priority: 'Must',   estimatedHours: 8,  status: 'done',       member: { name: '박준혁', color: '#2E75B6', initials: '박' }, progress: 100, startDate: '2026-07-01', dueDate: '2026-07-03', blocker: null },
-    { id: 't3',  title: '팀 초대 이메일 발송',           priority: 'Must',   estimatedHours: 4,  status: 'done',       member: { name: '박준혁', color: '#2E75B6', initials: '박' }, progress: 100, startDate: '2026-07-02', dueDate: '2026-07-03', blocker: null },
-    { id: 't4',  title: 'DB 스키마 설계',                priority: 'Must',   estimatedHours: 6,  status: 'done',       member: { name: '이민수', color: '#8B5CF6', initials: '이' }, progress: 100, startDate: '2026-07-01', dueDate: '2026-07-02', blocker: null },
-    { id: 't5',  title: '카카오 로그인 연동',             priority: 'Must',   estimatedHours: 4,  status: 'done',       member: { name: '박준혁', color: '#2E75B6', initials: '박' }, progress: 100, startDate: '2026-07-03', dueDate: '2026-07-04', blocker: null },
-    { id: 't6',  title: '전체 할 일 CRUD — API 개발',   priority: 'Must',   estimatedHours: 10, status: 'inprogress', member: { name: '박준혁', color: '#2E75B6', initials: '박' }, progress: 70,  startDate: '2026-07-01', dueDate: '2026-07-05', blocker: null },
-    { id: 't7',  title: '전체 할 일 CRUD — 프론트 UI',  priority: 'Must',   estimatedHours: 6,  status: 'inprogress', member: { name: '김서연', color: '#22C55E', initials: '김' }, progress: 50,  startDate: '2026-07-02', dueDate: '2026-07-05', blocker: 't6' },
-    { id: 't8',  title: '스프린트 화면 디자인 시안',      priority: 'Must',   estimatedHours: 6,  status: 'inprogress', member: { name: '최지은', color: '#F59E0B', initials: '최' }, progress: 80,  startDate: '2026-07-01', dueDate: '2026-07-04', blocker: null },
-    { id: 't9',  title: 'Capacity 입력 화면 구현',       priority: 'Must',   estimatedHours: 8,  status: 'todo',       member: { name: '김서연', color: '#22C55E', initials: '김' }, progress: 0,   startDate: '2026-07-06', dueDate: '2026-07-08', blocker: 't7' },
-    { id: 't10', title: 'AI 계획 초안 알고리즘',          priority: 'Must',   estimatedHours: 20, status: 'todo',       member: { name: '이민수', color: '#8B5CF6', initials: '이' }, progress: 0,   startDate: '2026-07-05', dueDate: '2026-07-10', blocker: null },
-    { id: 't11', title: 'AI 계획 초안 UI 연동',           priority: 'Must',   estimatedHours: 8,  status: 'todo',       member: { name: '김서연', color: '#22C55E', initials: '김' }, progress: 0,   startDate: '2026-07-10', dueDate: '2026-07-12', blocker: 't10' },
-    { id: 't12', title: '랜딩 페이지 디자인',             priority: 'Should', estimatedHours: 8,  status: 'todo',       member: { name: '최지은', color: '#F59E0B', initials: '최' }, progress: 0,   startDate: '2026-07-08', dueDate: '2026-07-14', blocker: null },
-    { id: 't13', title: 'AI 태스크 분해 API 연동',        priority: 'Must',   estimatedHours: 12, status: 'inprogress', member: { name: '이민수', color: '#8B5CF6', initials: '이' }, progress: 0,   startDate: '2026-07-03', dueDate: '2026-07-08', blocker: null },
-    { id: 't14', title: '스프린트 확정 화면 구현',         priority: 'Must',   estimatedHours: 8,  status: 'inprogress', member: { name: '김서연', color: '#22C55E', initials: '김' }, progress: 0,   startDate: '2026-07-07', dueDate: '2026-07-08', blocker: 't9' },
-  ],
+function toTask(row) {
+  const member = row.member
+    ? { id: row.member.id, name: row.member.profiles.name, color: row.member.profiles.color, initials: row.member.profiles.initials }
+    : null
+  return {
+    id: row.id,
+    title: row.title,
+    priority: row.priority,
+    estimatedHours: row.estimated_hours,
+    status: row.status,
+    member,
+    progress: row.progress,
+    startDate: row.start_date,
+    dueDate: row.due_date,
+    blocker: row.blocker_id,
+    note: row.note,
+    outputLink: row.output_link,
+  }
 }
 
-function load() {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY)
-    return raw ? JSON.parse(raw) : DEFAULT_SPRINT
-  } catch { return DEFAULT_SPRINT }
-}
-
-function save(sprint) {
-  try { localStorage.setItem(STORAGE_KEY, JSON.stringify(sprint)) } catch {}
-}
+const TASK_SELECT = 'id, title, priority, estimated_hours, status, progress, start_date, due_date, blocker_id, note, output_link, member:member_id(id, profiles(name, color, initials))'
 
 export function useSprintStore() {
-  const [sprint, setSprint] = useState(load)
+  const [teamId, setTeamId] = useState(null)
+  const [sprint, setSprint] = useState(EMPTY_SPRINT)
   const { push: pushNotif } = useNotificationStore()
 
-  useEffect(() => { save(sprint) }, [sprint])
+  const reload = useCallback(async (tid) => {
+    const { data: s } = await supabase
+      .from('sprints').select('*').eq('team_id', tid).eq('status', 'active')
+      .order('started_at', { ascending: false }).limit(1).maybeSingle()
+    if (!s) { setSprint(EMPTY_SPRINT); return }
+    const { data: tasks } = await supabase.from('tasks').select(TASK_SELECT).eq('sprint_id', s.id)
+    setSprint({
+      id: s.id,
+      name: s.name,
+      status: s.status,
+      startDate: s.start_date,
+      endDate: s.end_date,
+      startedAt: s.started_at,
+      tasks: (tasks || []).map(toTask),
+    })
+  }, [])
 
-  /** 빌더에서 확정할 때 호출 */
-  function confirmSprint(name, aiTasks, meta = {}) {
-    const tasks = aiTasks.map((t, idx) => ({
-      id: `t${idx + 1}`,
+  useEffect(() => {
+    let channel
+    ensureTeamId().then((tid) => {
+      setTeamId(tid)
+      reload(tid)
+      channel = supabase
+        .channel(`tasks-${tid}`)
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'tasks' }, () => reload(tid))
+        .subscribe()
+    })
+    return () => { if (channel) supabase.removeChannel(channel) }
+  }, [reload])
+
+  /** 빌더에서 확정할 때 호출 — 기존 활성 스프린트가 있으면 종료 처리 후 새로 생성 (팀당 활성 1개 제약) */
+  async function confirmSprint(name, aiTasks, meta = {}) {
+    await supabase.from('sprints').update({ status: 'completed', closed_at: new Date().toISOString() })
+      .eq('team_id', teamId).eq('status', 'active')
+
+    const { data: newSprint, error } = await supabase.from('sprints').insert({
+      team_id: teamId, name,
+      start_date: meta.startDate || new Date().toISOString().slice(0, 10),
+      end_date: meta.endDate || new Date().toISOString().slice(0, 10),
+      goal: meta.goal || '',
+    }).select('id').single()
+    if (error) throw error
+
+    const rows = aiTasks.map(t => ({
+      sprint_id: newSprint.id,
       title: t.title,
       priority: t.priority,
-      estimatedHours: t.estimatedHours || 0,
+      estimated_hours: t.estimatedHours || 0,
       status: 'todo',
-      member: t.member,
       progress: 0,
-      startDate: meta.startDate || null,
-      dueDate: null,
-      blocker: null,
+      member_id: t.member?.id || null,
+      start_date: meta.startDate || null,
     }))
-    const next = {
-      ...sprint, name, tasks,
-      status: 'active',
-      startDate: meta.startDate || sprint.startDate,
-      endDate:   meta.endDate   || sprint.endDate,
-      goal:      meta.goal      || '',
-      startedAt: new Date().toISOString(),
-    }
-    setSprint(next)
-    save(next)
+    if (rows.length) await supabase.from('tasks').insert(rows)
+    await reload(teamId)
   }
 
   /** 카드 상태 변경 (todo → inprogress → done) */
-  function moveTask(taskId, newStatus) {
+  async function moveTask(taskId, newStatus) {
+    const finished = sprint.tasks.find(t => t.id === taskId)
+    const progress = newStatus === 'done' ? 100 : newStatus === 'inprogress' ? 10 : 0
+    await supabase.from('tasks').update({ status: newStatus, progress }).eq('id', taskId)
+
     if (newStatus === 'done') {
+      if (finished && finished.status !== 'review') {
+        pushNotif({
+          type: 'success',
+          title: `완료 — ${finished.title}`,
+          body: `${finished.member?.name ? `${finished.member.name}님이 ` : ''}"${finished.title}"을(를) 완료로 변경했어요.`,
+        })
+      }
       const unblocked = sprint.tasks.filter(t => t.blocker === taskId && t.status !== 'done' && t.member)
-      const finished = sprint.tasks.find(t => t.id === taskId)
       unblocked.forEach(t => {
         pushNotif({
-          icon: '🚀',
+          type: 'unblocked',
           title: `시작 가능 — ${t.title}`,
           body: `${t.member.name}님, "${finished?.title || '선행 업무'}"가 완료되어 이제 "${t.title}"를 시작할 수 있어요.`,
         })
       })
     }
-    setSprint(prev => ({
-      ...prev,
-      tasks: prev.tasks.map(t =>
-        t.id === taskId
-          ? { ...t, status: newStatus, progress: newStatus === 'done' ? 100 : newStatus === 'inprogress' ? 10 : 0 }
-          : t
-      ),
-    }))
+    await reload(teamId)
   }
 
-  /** 진행률 업데이트 */
-  function updateProgress(taskId, progress) {
-    setSprint(prev => ({
-      ...prev,
-      tasks: prev.tasks.map(t => t.id === taskId ? { ...t, progress } : t),
-    }))
+  async function updateProgress(taskId, progress) {
+    setSprint(prev => ({ ...prev, tasks: prev.tasks.map(t => t.id === taskId ? { ...t, progress } : t) }))
+    await supabase.from('tasks').update({ progress }).eq('id', taskId)
   }
 
-  /** 진행 메모 업데이트 */
-  function updateNote(taskId, note) {
-    setSprint(prev => ({
-      ...prev,
-      tasks: prev.tasks.map(t => t.id === taskId ? { ...t, note } : t),
-    }))
+  async function updateNote(taskId, note) {
+    setSprint(prev => ({ ...prev, tasks: prev.tasks.map(t => t.id === taskId ? { ...t, note } : t) }))
+    await supabase.from('tasks').update({ note }).eq('id', taskId)
   }
 
-  /** 태스크 필드 일괄 업데이트 (outputLink 등) */
-  function updateTask(taskId, patch) {
-    setSprint(prev => ({
-      ...prev,
-      tasks: prev.tasks.map(t => t.id === taskId ? { ...t, ...patch } : t),
-    }))
+  async function updateTask(taskId, patch) {
+    const dbPatch = {}
+    if ('outputLink' in patch) dbPatch.output_link = patch.outputLink
+    if ('dueDate' in patch) dbPatch.due_date = patch.dueDate
+    if ('title' in patch) dbPatch.title = patch.title
+    setSprint(prev => ({ ...prev, tasks: prev.tasks.map(t => t.id === taskId ? { ...t, ...patch } : t) }))
+    if (Object.keys(dbPatch).length) await supabase.from('tasks').update(dbPatch).eq('id', taskId)
   }
 
   /** 스프린트 종료: completed 처리 + 미완료 태스크 목록 반환 (백로그 이월은 호출부에서) */
-  function closeSprint() {
+  async function closeSprint() {
     const incomplete = sprint.tasks.filter(t => t.status !== 'done')
-    setSprint(prev => ({ ...prev, status: 'completed', closedAt: new Date().toISOString() }))
+    await supabase.from('sprints').update({ status: 'completed', closed_at: new Date().toISOString() }).eq('id', sprint.id)
+    await reload(teamId)
     return incomplete
   }
 

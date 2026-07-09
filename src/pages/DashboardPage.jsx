@@ -9,6 +9,7 @@ import { useTeamStore } from '../store/useTeamStore'
 import { useScheduleStore } from '../store/useScheduleStore'
 import { useCapacityHistoryStore } from '../store/useCapacityHistoryStore'
 import { useIsMobile } from '../hooks/useIsMobile'
+import StatusIcon from '../components/StatusIcon'
 
 const ROLE_KEYWORDS = {
   백엔드:    /api|서버|db|데이터베이스|인증|로그인|crud|저장|연동|스키마|마이그레이션|백엔드|backend/,
@@ -82,7 +83,7 @@ function SectionTitle({ children, count, countColor }) {
 }
 
 // PM용 확인 필요 항목 카드
-function AlertCard({ icon, label, desc, level = 'warn', action, onAction }) {
+function AlertCard({ type, label, desc, level = 'warn', action, onAction }) {
   const styles = {
     warn:   { bg: '#FFFBEB', border: '#FDE68A', color: '#D97706' },
     danger: { bg: '#FFF5F5', border: '#FECACA', color: '#DC2626' },
@@ -94,7 +95,9 @@ function AlertCard({ icon, label, desc, level = 'warn', action, onAction }) {
       padding: '12px 16px', borderRadius: 12, display: 'flex', alignItems: 'center', gap: 12,
       background: s.bg, border: `1px solid ${s.border}`,
     }}>
-      <span style={{ fontSize: 18, flexShrink: 0 }}>{icon}</span>
+      <div style={{ width: 28, height: 28, borderRadius: 8, background: '#fff', border: `1px solid ${s.border}`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+        <StatusIcon type={type || level} size={15} />
+      </div>
       <div style={{ flex: 1, minWidth: 0 }}>
         <p style={{ fontSize: 13, fontWeight: 700, color: '#111827', marginBottom: 2 }}>{label}</p>
         <p style={{ fontSize: 11, color: '#6B7280' }}>{desc}</p>
@@ -466,6 +469,8 @@ function CalendarView({ tasks, isMobile }) {
   for (let d = 1; d <= daysInMonth; d++) cells.push(d)
 
   const STATUS_DOT = { done: '#10B981', inprogress: '#2563EB', review: '#F59E0B', todo: '#9CA3AF' }
+  // 색상만으로 구분하지 않도록 상태별 모양도 다르게 — 원(진행중) / 사각(검토중) / 링(예정) / 큰 원(완료)
+  const DOT_SHAPE = { done: {}, inprogress: {}, review: { square: true }, todo: { ring: true } }
 
   const selectedTasks  = tasksByDate[selectedDate] || []
   const selectedEvents = eventsByDate[selectedDate] || []
@@ -507,23 +512,44 @@ function CalendarView({ tasks, isMobile }) {
                   display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: 2, textAlign: 'left',
                 }}>
                   <span style={{ fontSize: 11, fontWeight: isToday ? 800 : 600, color: isToday ? '#2563EB' : '#374151' }}>{d}</span>
-                  <div style={{ display: 'flex', gap: 2, flexWrap: 'wrap' }}>
-                    {dayTasks.slice(0, 3).map(t => (
-                      <span key={t.id} title={t.title} style={{ width: 5, height: 5, borderRadius: '50%', background: STATUS_DOT[t.status] || '#9CA3AF' }} />
-                    ))}
-                    {dayEvents.length > 0 && <span style={{ fontSize: 8 }}>📌</span>}
+                  <div style={{ display: 'flex', gap: 3, flexWrap: 'wrap', alignItems: 'center' }}>
+                    {dayTasks.slice(0, 3).map(t => {
+                      const shape = DOT_SHAPE[t.status] || DOT_SHAPE.todo
+                      return (
+                        <span key={t.id} title={t.title} style={{
+                          width: 6, height: 6, flexShrink: 0,
+                          borderRadius: shape.square ? 1 : '50%',
+                          background: shape.ring ? 'transparent' : (STATUS_DOT[t.status] || '#9CA3AF'),
+                          border: shape.ring ? `1.5px solid ${STATUS_DOT[t.status] || '#9CA3AF'}` : 'none',
+                        }} />
+                      )
+                    })}
+                    {dayEvents.length > 0 && <StatusIcon type="event" size={9} />}
                   </div>
                 </button>
               )
             })}
           </div>
           <div style={{ display: 'flex', gap: 12, marginTop: 10, flexWrap: 'wrap' }}>
-            {Object.entries({ 예정: '#9CA3AF', 진행중: '#2563EB', 검토중: '#F59E0B', 완료: '#10B981' }).map(([label, color]) => (
-              <div key={label} style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                <span style={{ width: 6, height: 6, borderRadius: '50%', background: color }} />
-                <span style={{ fontSize: 11, color: '#9CA3AF' }}>{label}</span>
-              </div>
-            ))}
+            {[
+              { key: 'todo',       label: '예정' },
+              { key: 'inprogress', label: '진행중' },
+              { key: 'review',     label: '검토중' },
+              { key: 'done',       label: '완료' },
+            ].map(({ key, label }) => {
+              const shape = DOT_SHAPE[key]
+              return (
+                <div key={key} style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+                  <span style={{
+                    width: 7, height: 7, flexShrink: 0,
+                    borderRadius: shape.square ? 1 : '50%',
+                    background: shape.ring ? 'transparent' : STATUS_DOT[key],
+                    border: shape.ring ? `1.5px solid ${STATUS_DOT[key]}` : 'none',
+                  }} />
+                  <span style={{ fontSize: 11, color: '#9CA3AF' }}>{label}</span>
+                </div>
+              )
+            })}
           </div>
         </div>
 
@@ -537,13 +563,21 @@ function CalendarView({ tasks, isMobile }) {
 
           {selectedTasks.length > 0 && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 12 }}>
-              {selectedTasks.map(t => (
-                <div key={t.id} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 8px', borderRadius: 8, background: '#F9FAFB' }}>
-                  <span style={{ width: 6, height: 6, borderRadius: '50%', background: STATUS_DOT[t.status] || '#9CA3AF', flexShrink: 0 }} />
-                  <span style={{ fontSize: 12, color: '#374151', flex: 1 }}>{t.title}</span>
-                  {t.member && <span style={{ fontSize: 10, color: '#9CA3AF', flexShrink: 0 }}>{t.member.name}</span>}
-                </div>
-              ))}
+              {selectedTasks.map(t => {
+                const shape = DOT_SHAPE[t.status] || DOT_SHAPE.todo
+                return (
+                  <div key={t.id} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 8px', borderRadius: 8, background: '#F9FAFB' }}>
+                    <span style={{
+                      width: 7, height: 7, flexShrink: 0,
+                      borderRadius: shape.square ? 1 : '50%',
+                      background: shape.ring ? 'transparent' : (STATUS_DOT[t.status] || '#9CA3AF'),
+                      border: shape.ring ? `1.5px solid ${STATUS_DOT[t.status] || '#9CA3AF'}` : 'none',
+                    }} />
+                    <span style={{ fontSize: 12, color: '#374151', flex: 1 }}>{t.title}</span>
+                    {t.member && <span style={{ fontSize: 10, color: '#9CA3AF', flexShrink: 0 }}>{t.member.name}</span>}
+                  </div>
+                )
+              })}
             </div>
           )}
 
@@ -551,7 +585,7 @@ function CalendarView({ tasks, isMobile }) {
             <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 12 }}>
               {selectedEvents.map(e => (
                 <div key={e.id} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 8px', borderRadius: 8, background: '#F5F3FF' }}>
-                  <span style={{ fontSize: 12 }}>📌</span>
+                  <StatusIcon type="event" size={13} />
                   <span style={{ fontSize: 12, color: '#374151', flex: 1 }}>{e.title}</span>
                   <button onClick={() => removeEvent(e.id)} style={{ fontSize: 11, color: '#9CA3AF', background: 'none', border: 'none', cursor: 'pointer' }}>✕</button>
                 </div>
@@ -612,32 +646,32 @@ function PMHome({ currentUser, sprint, onSendNotification, teamMembers = [], upd
 
   const alerts = [
     overdueAll.length > 0 && {
-      level: 'danger', icon: '⏰',
+      level: 'danger', type: 'overdue',
       label: `일정 초과 ${overdueAll.length}개 — 마감일이 지났어요`,
       desc: overdueAll.slice(0, 2).map(t => `${t.title}${t.member ? ` (${t.member.name})` : ''}`).join(', '),
     },
     noAssignee.length > 0 && {
-      level: 'warn', icon: '👤',
+      level: 'warn', type: 'unassigned',
       label: `미배정 업무 ${noAssignee.length}개`,
       desc: noAssignee.slice(0, 2).map(t => t.title).join(', ') + (noAssignee.length > 2 ? ' 외' : ''),
     },
     blockerTasks.length > 0 && {
-      level: 'danger', icon: '🔴',
+      level: 'danger', type: 'blocker',
       label: `블로커 ${blockerTasks.length}개 — 선행 업무 대기 중`,
       desc: blockerTasks.slice(0, 2).map(t => t.title).join(' · '),
     },
     dueSoon.length > 0 && {
-      level: daysLeft <= 0 ? 'danger' : 'warn', icon: '📅',
+      level: daysLeft <= 0 ? 'danger' : 'warn', type: 'deadline',
       label: `마감 임박 미완료 ${dueSoon.length}개`,
       desc: dueSoon.slice(0, 2).map(t => t.title).join(', '),
     },
     overloaded.length > 0 && {
-      level: 'warn', icon: '⚠️',
+      level: 'warn', type: 'warn',
       label: `과부하 팀원 ${overloaded.length}명`,
       desc: `${overloaded.join(', ')} — 남은 배정 시간이 40시간을 넘어요`,
     },
     todo.length > inpro.length * 2 && todo.length > 3 && {
-      level: 'info', icon: '📋',
+      level: 'info', type: 'backlog',
       label: `대기 중 태스크 ${todo.length}개 — 착수를 서두르세요`,
       desc: `진행 중(${inpro.length}개)보다 대기 중 업무가 훨씬 많아요`,
     },
@@ -807,7 +841,11 @@ function PMHome({ currentUser, sprint, onSendNotification, teamMembers = [], upd
                       <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4, flexWrap: 'wrap' }}>
                         <span style={{ fontSize: 13, fontWeight: 600, color: '#111827' }}>{member.name}</span>
                         {over && <span style={{ fontSize: 10, fontWeight: 700, color: '#DC2626', background: '#FEE2E2', border: '1px solid #FECACA', padding: '1px 6px', borderRadius: 9999 }}>과부하</span>}
-                        {overdue.length > 0 && <span style={{ fontSize: 10, fontWeight: 700, color: '#B91C1C', background: '#FEF2F2', border: '1px solid #FECACA', padding: '1px 6px', borderRadius: 9999 }}>⏰ 일정 초과 {overdue.length}건</span>}
+                        {overdue.length > 0 && (
+                          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3, fontSize: 10, fontWeight: 700, color: '#B91C1C', background: '#FEF2F2', border: '1px solid #FECACA', padding: '1px 6px', borderRadius: 9999 }}>
+                            <StatusIcon type="overdue" size={10} /> 일정 초과 {overdue.length}건
+                          </span>
+                        )}
                         <span style={{ fontSize: 11, color: '#9CA3AF', marginLeft: 2 }}>{doneCnt}/{mt.length}개 완료</span>
                         <span style={{ fontSize: 11, fontWeight: 700, color: efficiency >= 70 ? '#10B981' : efficiency >= 40 ? '#D97706' : '#9CA3AF' }}>· 효율 {efficiency}%</span>
                       </div>
@@ -837,7 +875,11 @@ function PMHome({ currentUser, sprint, onSendNotification, teamMembers = [], upd
                             <span style={{ fontSize: 13, color: '#111827', flex: 1 }}>{t.title}</span>
                             {t.estimatedHours > 0 && <span style={{ fontSize: 11, color: '#9CA3AF', flexShrink: 0 }}>{t.estimatedHours}h</span>}
                             {t.dueDate && <span style={{ fontSize: 11, color: isOverdue ? '#DC2626' : '#9CA3AF', fontWeight: isOverdue ? 700 : 400, flexShrink: 0 }}>~{t.dueDate}</span>}
-                            {isOverdue && <span style={{ fontSize: 10, color: '#DC2626', background: '#FEE2E2', padding: '1px 6px', borderRadius: 9999, flexShrink: 0 }}>⏰ 초과</span>}
+                            {isOverdue && (
+                              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3, fontSize: 10, color: '#DC2626', background: '#FEE2E2', padding: '1px 6px', borderRadius: 9999, flexShrink: 0 }}>
+                                <StatusIcon type="overdue" size={10} /> 초과
+                              </span>
+                            )}
                             {t.blocker && <span style={{ fontSize: 10, color: '#DC2626', background: '#FEE2E2', padding: '1px 6px', borderRadius: 9999, flexShrink: 0 }}>블로커</span>}
                           </div>
                         )
@@ -1081,7 +1123,7 @@ function MemberHome({ currentUser, sprint, moveTask, isMobile, onRequestReview }
       {/* 마감 임박 경고 */}
       {dueSoon.length > 0 && (
         <div style={{ padding: '12px 16px', borderRadius: 12, background: '#FFFBEB', border: '1px solid #FDE68A', display: 'flex', gap: 10, alignItems: 'center' }}>
-          <span style={{ fontSize: 16 }}>⏰</span>
+          <StatusIcon type="deadline" size={16} />
           <div>
             <p style={{ fontSize: 13, fontWeight: 700, color: '#D97706', marginBottom: 2 }}>3일 내 마감 {dueSoon.length}개</p>
             <p style={{ fontSize: 11, color: '#92400E' }}>{dueSoon.map(t => t.title).join(', ')}</p>
@@ -1193,7 +1235,7 @@ export default function DashboardPage() {
   }, [])
 
   function handleSendNotification(summary, extra) {
-    pushNotif({ icon: '📢', title: 'PM 공지', body: summary + (extra ? '\n' + extra : '') })
+    pushNotif({ type: 'announce', title: 'PM 공지', body: summary + (extra ? '\n' + extra : '') })
     // Discord 웹훅이 설정된 경우 발송
     if (settings.discordWebhook) {
       fetch(settings.discordWebhook, {
@@ -1289,7 +1331,7 @@ export default function DashboardPage() {
       ) : currentUser ? (
         <MemberHome currentUser={currentUser} sprint={sprint} moveTask={moveTask} isMobile={isMobile}
           onRequestReview={task => pushNotif({
-            icon: '🔍',
+            type: 'review',
             title: `검토 요청 — ${task.title}`,
             body: `${currentUser?.name}님이 "${task.title}" 검토를 요청했어요. 진행 현황판에서 승인/반려할 수 있어요.`,
           })} />

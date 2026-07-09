@@ -3,6 +3,8 @@ import Topbar from '../components/layout/Topbar'
 import { useSprintStore } from '../store/useSprintStore'
 import { useAuthStore } from '../store/useAuthStore'
 import { useIsMobile } from '../hooks/useIsMobile'
+import StatusIcon from '../components/StatusIcon'
+import { CheckCircle2, Undo2, ListTodo, Zap, Search } from 'lucide-react'
 
 const PRIORITY_STYLE = {
   Must:    { bg: '#FEE2E2', color: '#DC2626', border: '#FECACA' },
@@ -121,7 +123,9 @@ function TaskCard({ task, allTasks, onMove, onProgressChange, onNoteChange, onOu
       {isBlocked && (
         <div style={{ marginBottom: 8, padding: '7px 10px', borderRadius: 8, background: '#FFF5F5', border: '1px solid #FECACA' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 3 }}>
-            <span style={{ fontSize: 10, fontWeight: 700, color: '#DC2626', background: '#FEE2E2', border: '1px solid #FECACA', padding: '1px 6px', borderRadius: 9999 }}>🔴 블로커</span>
+            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 10, fontWeight: 700, color: '#DC2626', background: '#FEE2E2', border: '1px solid #FECACA', padding: '1px 6px', borderRadius: 9999 }}>
+              <StatusIcon type="blocker" size={10} /> 블로커
+            </span>
           </div>
           <p style={{ fontSize: 11, color: '#DC2626', lineHeight: 1.5 }}>
             선행 업무 완료 전까지 시작 불가:<br />
@@ -175,20 +179,17 @@ function TaskCard({ task, allTasks, onMove, onProgressChange, onNoteChange, onOu
       {/* 진행률 (inprogress) */}
       {task.status === 'inprogress' && (
         <div style={{ marginBottom: 8 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
-            <div style={{ flex: 1, height: 4, background: '#E8EAED', borderRadius: 2, overflow: 'hidden' }}>
-              <div style={{ height: '100%', background: '#2563EB', borderRadius: 2, width: `${progress}%`, transition: 'width 0.3s' }} />
-            </div>
-            <span style={{ fontSize: 11, fontWeight: 700, color: '#2563EB', width: 28, textAlign: 'right' }}>
-              {progress}%
-            </span>
-          </div>
           {isOwner ? (
             <>
-              <input type="range" min="0" max="100" step="10"
-                value={progress}
-                onChange={e => { setProgress(Number(e.target.value)); setSaved(false) }}
-                style={{ width: '100%', accentColor: '#2563EB', cursor: 'pointer' }} />
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+                <input type="range" min="0" max="100" step="10"
+                  value={progress}
+                  onChange={e => { setProgress(Number(e.target.value)); setSaved(false) }}
+                  style={{ flex: 1, accentColor: '#2563EB', cursor: 'pointer' }} />
+                <span style={{ fontSize: 11, fontWeight: 700, color: '#2563EB', width: 28, textAlign: 'right' }}>
+                  {progress}%
+                </span>
+              </div>
               <textarea
                 placeholder="진행 상황을 간단히 메모해요..."
                 value={note}
@@ -220,6 +221,14 @@ function TaskCard({ task, allTasks, onMove, onProgressChange, onNoteChange, onOu
             </>
           ) : (
             <>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <div style={{ flex: 1, height: 6, background: '#E8EAED', borderRadius: 3, overflow: 'hidden' }}>
+                  <div style={{ height: '100%', background: '#2563EB', borderRadius: 3, width: `${progress}%`, transition: 'width 0.3s' }} />
+                </div>
+                <span style={{ fontSize: 11, fontWeight: 700, color: '#2563EB', width: 28, textAlign: 'right' }}>
+                  {progress}%
+                </span>
+              </div>
               {task.note && (
                 <p style={{
                   marginTop: 8, padding: '7px 10px', fontSize: 12, color: '#4B5563',
@@ -247,11 +256,11 @@ function TaskCard({ task, allTasks, onMove, onProgressChange, onNoteChange, onOu
           {isPM ? (
             <div style={{ display: 'flex', gap: 6 }}>
               <button onClick={() => onMove(task.id, 'done')}
-                style={{ flex: 1, padding: '6px', fontSize: 11, fontWeight: 700, borderRadius: 8, border: 'none', background: '#10B981', color: '#fff', cursor: 'pointer' }}
-                className="btn-press-soft">✅ 승인</button>
+                style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5, padding: '6px', fontSize: 11, fontWeight: 700, borderRadius: 8, border: 'none', background: '#10B981', color: '#fff', cursor: 'pointer' }}
+                className="btn-press-soft"><CheckCircle2 size={13} /> 승인</button>
               <button onClick={() => onMove(task.id, 'inprogress')}
-                style={{ flex: 1, padding: '6px', fontSize: 11, fontWeight: 700, borderRadius: 8, border: '1px solid #FECACA', background: '#FFF5F5', color: '#DC2626', cursor: 'pointer' }}
-                className="btn-press-soft">↩️ 반려</button>
+                style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5, padding: '6px', fontSize: 11, fontWeight: 700, borderRadius: 8, border: '1px solid #FECACA', background: '#FFF5F5', color: '#DC2626', cursor: 'pointer' }}
+                className="btn-press-soft"><Undo2 size={13} /> 반려</button>
             </div>
           ) : (
             <p style={{ fontSize: 11, color: '#D97706', fontWeight: 600 }}>PM 검토 중...</p>
@@ -371,8 +380,8 @@ export default function BoardPage() {
     <div style={{ display: 'flex', flexDirection: 'column', flex: 1, overflow: 'hidden' }}>
       <Topbar title="진행 현황판" subtitle={sprint.name}>
         {blockerCount > 0 && (
-          <span style={{ fontSize: 11, fontWeight: 700, color: '#DC2626', background: '#FEE2E2', border: '1px solid #FECACA', padding: '4px 10px', borderRadius: 9999, whiteSpace: 'nowrap' }}>
-            🔴 블로커 {blockerCount}개
+          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 11, fontWeight: 700, color: '#DC2626', background: '#FEE2E2', border: '1px solid #FECACA', padding: '4px 10px', borderRadius: 9999, whiteSpace: 'nowrap' }}>
+            <StatusIcon type="blocker" size={12} /> 블로커 {blockerCount}개
           </span>
         )}
         <button onClick={() => setShowAll(p => !p)} style={{
@@ -450,7 +459,7 @@ export default function BoardPage() {
                 <div style={{ flex: 1, overflowY: 'auto', padding: '12px 16px', display: 'flex', flexDirection: 'column', gap: 10 }}>
                   {tasks.length === 0 && (
                     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 8, height: 140, border: '1.5px dashed #E8EAED', borderRadius: 14, color: '#9CA3AF' }}>
-                      <span style={{ fontSize: 28 }}>{col.id === 'todo' ? '📋' : col.id === 'inprogress' ? '⚡' : col.id === 'review' ? '🔍' : '✅'}</span>
+                      {col.id === 'todo' ? <ListTodo size={26} /> : col.id === 'inprogress' ? <Zap size={26} /> : col.id === 'review' ? <Search size={26} /> : <CheckCircle2 size={26} />}
                       <span style={{ fontSize: 12 }}>{col.id === 'todo' ? '대기 중인 업무 없음' : col.id === 'inprogress' ? '진행 중인 업무 없음' : col.id === 'review' ? '검토 중인 업무 없음' : '완료된 업무 없음'}</span>
                     </div>
                   )}

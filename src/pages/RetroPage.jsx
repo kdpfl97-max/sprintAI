@@ -33,10 +33,26 @@ const DEFAULT_ENTRIES = {
   ],
 }
 
-// 더미 AI 회고 결과 (USE_MOCK=true일 때 사용) — summary만 실제 완료율로 채움
+// 더미 AI 회고 결과 (USE_MOCK=true일 때 사용) — summary·nextActions는 실제 데이터로 채움
 function buildMockSummary(pct, doneCount, totalCount) {
   const tone = pct >= 70 ? '목표를 무난히 달성한' : pct >= 40 ? '목표 대비 다소 아쉬운' : '목표 대비 진행이 더뎠던'
   return `이번 계획은 ${tone} 스프린트였습니다. 완료율 ${pct}%(${doneCount}/${totalCount}개)로, Must 태스크 중심으로 진행되어 핵심 기능의 품질은 유지됐습니다.`
+}
+
+// 실제 미완료 태스크·블로커 기준 다음 액션 추천 (하드코딩 대신 이번 계획 데이터 반영)
+function buildNextActions(tasks, blockers) {
+  const actions = []
+  blockers.slice(0, 2).forEach(t => {
+    actions.push(`${t.title} — ${t.member?.name || '담당자 미정'} (블로커 해소 최우선)`)
+  })
+  tasks
+    .filter(t => t.status !== 'done' && !blockers.includes(t))
+    .slice(0, Math.max(0, 4 - actions.length))
+    .forEach(t => {
+      actions.push(`${t.title} — ${t.member?.name || '담당자 미정'}`)
+    })
+  if (actions.length === 0) actions.push('모든 태스크가 완료됐어요 — 다음 계획 범위를 논의해보세요')
+  return actions
 }
 
 const MOCK_AI_RETRO = {
@@ -44,12 +60,6 @@ const MOCK_AI_RETRO = {
   learned: '인터뷰를 개발 이후에 진행하면서 방향 수정이 필요한 부분이 발생했습니다. 다음 스프린트부터는 기획-검증-개발 순서를 지키는 것이 중요합니다.',
   lacked:  'AI 태스크 분해 API 연동(t13)과 스프린트 확정 화면(t14)이 inprogress 상태에서 진행률 0%로 블로커가 됐습니다. 이민수님의 13작업량 태스크가 Sprint 1 후반 리스크였습니다.',
   longed:  '다음 스프린트에서는 Supabase 연동으로 실제 멀티유저 환경을 구현하고, Claude API를 실제 연동하여 AI 플래닝 차별점을 사용자에게 직접 보여줄 수 있어야 합니다.',
-  nextActions: [
-    'AI 태스크 분해 API 연동 — 이민수 (블로커 해소 최우선)',
-    'Supabase 스키마 설계 및 Auth 연동 — 박준혁',
-    '에듀 시장 교수용 대시보드 기획 — 곽예리',
-    'Claude API USE_MOCK → false 전환 후 실제 테스트 — 이민수',
-  ],
 }
 
 const card = {
@@ -112,7 +122,11 @@ export default function RetroPage() {
     setAiRetro(null)
     // ponytail: mock delay — swap callClaude when USE_MOCK=false
     await new Promise(r => setTimeout(r, 2000))
-    setAiRetro({ ...MOCK_AI_RETRO, summary: buildMockSummary(pct, done.length, tasks.length) })
+    setAiRetro({
+      ...MOCK_AI_RETRO,
+      summary: buildMockSummary(pct, done.length, tasks.length),
+      nextActions: buildNextActions(tasks, blockers),
+    })
     setAiLoading(false)
   }
 
