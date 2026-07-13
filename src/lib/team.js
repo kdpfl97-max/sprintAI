@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { supabase } from './supabaseClient'
+import { seedDemoDataIfEmpty } from './seedDemoData'
 
 const TEAM_ID_KEY = 'sprintai_team_id'
 const TEAM_CODE_KEY = 'sprintai_team_code'
@@ -16,30 +17,40 @@ let pending = null
 export function ensureTeamId() {
   if (pending) return pending
   pending = (async () => {
+    let id = null
+
     const savedId = localStorage.getItem(TEAM_ID_KEY)
     if (savedId) {
       const { data } = await supabase.from('teams').select('id').eq('id', savedId).maybeSingle()
-      if (data) return data.id
+      if (data) id = data.id
     }
 
-    const { data: anyTeam } = await supabase
-      .from('teams').select('id, team_code').order('created_at', { ascending: true }).limit(1).maybeSingle()
-    if (anyTeam) {
-      localStorage.setItem(TEAM_ID_KEY, anyTeam.id)
-      localStorage.setItem(TEAM_CODE_KEY, anyTeam.team_code)
-      return anyTeam.id
+    if (!id) {
+      const { data: anyTeam } = await supabase
+        .from('teams').select('id, team_code').order('created_at', { ascending: true }).limit(1).maybeSingle()
+      if (anyTeam) {
+        id = anyTeam.id
+        localStorage.setItem(TEAM_ID_KEY, anyTeam.id)
+        localStorage.setItem(TEAM_CODE_KEY, anyTeam.team_code)
+      }
     }
 
-    const code = generateCode()
-    const { data: created, error } = await supabase
-      .from('teams')
-      .insert({ name: '내 팀', team_code: code })
-      .select('id')
-      .single()
-    if (error) throw error
-    localStorage.setItem(TEAM_ID_KEY, created.id)
-    localStorage.setItem(TEAM_CODE_KEY, code)
-    return created.id
+    if (!id) {
+      const code = generateCode()
+      const { data: created, error } = await supabase
+        .from('teams')
+        .insert({ name: '내 팀', team_code: code })
+        .select('id')
+        .single()
+      if (error) throw error
+      id = created.id
+      localStorage.setItem(TEAM_ID_KEY, id)
+      localStorage.setItem(TEAM_CODE_KEY, code)
+    }
+
+    // 실무자 데모용 — 팀이 비어있으면(초기화됐거나 막 생성됐거나) 항상 같은 더미데이터로 채움
+    await seedDemoDataIfEmpty(id)
+    return id
   })()
   return pending
 }
