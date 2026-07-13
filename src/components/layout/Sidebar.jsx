@@ -5,7 +5,7 @@ import { useTeamStore } from '../../store/useTeamStore'
 import { useSprintStore } from '../../store/useSprintStore'
 import { useNotificationStore } from '../../store/useNotificationStore'
 import StatusIcon from '../StatusIcon'
-import logo from '../../assets/logo.png'
+import logo from '../../assets/logo-white.png'
 
 // roles: 'PM' | 'member' | 'guest' (비로그인)
 const NAV_ITEMS = [
@@ -71,9 +71,9 @@ export default function Sidebar() {
       <div style={{ padding: '20px 20px 16px', borderBottom: `1px solid ${C.divider}` }}>
         <button onClick={() => navigate('/dashboard')} style={{
           display: 'flex', alignItems: 'center',
-          border: 'none', background: '#fff', borderRadius: 10, padding: '6px 10px', cursor: 'pointer',
+          border: 'none', background: 'transparent', padding: 0, cursor: 'pointer',
         }}>
-          <img src={logo} alt="SprintAI" style={{ height: 22, display: 'block' }} />
+          <img src={logo} alt="SprintAI" style={{ height: 30, display: 'block' }} />
         </button>
         <span style={{
           display: 'inline-block', marginTop: 8,

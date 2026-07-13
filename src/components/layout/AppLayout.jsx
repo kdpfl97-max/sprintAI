@@ -6,7 +6,7 @@ import { useNotificationStore } from '../../store/useNotificationStore'
 import { useState } from 'react'
 import { useTeamStore } from '../../store/useTeamStore'
 import StatusIcon from '../StatusIcon'
-import logo from '../../assets/logo.png'
+import logoWhite from '../../assets/logo-white.png'
 
 // 사이드바와 동일한 브랜드 컬러
 const C = {
@@ -189,9 +189,7 @@ function HamburgerDrawer({ onClose, currentUser }) {
         {/* 헤더 */}
         <div style={{ padding: '20px 20px 16px', borderBottom: `1px solid ${C.divider}` }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-            <div style={{ background: '#fff', borderRadius: 10, padding: '6px 10px', display: 'flex', alignItems: 'center' }}>
-              <img src={logo} alt="SprintAI" style={{ height: 20, display: 'block' }} />
-            </div>
+            <img src={logoWhite} alt="SprintAI" style={{ height: 30, display: 'block' }} />
             <p style={{ fontSize: 11, color: C.textSub }}>전체 메뉴</p>
           </div>
         </div>
@@ -260,9 +258,7 @@ export default function AppLayout() {
           flex: 1, display: 'flex', justifyContent: 'center',
           border: 'none', background: 'transparent', padding: 0, cursor: 'pointer',
         }}>
-          <div style={{ background: '#fff', borderRadius: 8, padding: '4px 8px', display: 'flex', alignItems: 'center' }}>
-            <img src={logo} alt="SprintAI" style={{ height: 16, display: 'block' }} />
-          </div>
+          <img src={logoWhite} alt="SprintAI" style={{ height: 26, display: 'block' }} />
         </button>
         <button onClick={() => setShowDrawer(true)} style={{ width: 36, height: 36, border: 'none', background: 'rgba(255,255,255,0.12)', borderRadius: 10, cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 4, flexShrink: 0 }}>
           <div style={{ width: 16, height: 2, background: '#fff', borderRadius: 1 }} />
