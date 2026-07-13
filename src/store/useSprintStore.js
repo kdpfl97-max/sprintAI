@@ -56,8 +56,9 @@ export function useSprintStore() {
     ensureTeamId().then((tid) => {
       setTeamId(tid)
       reload(tid)
+      // 채널명에 랜덤 suffix — 같은 훅을 여러 컴포넌트가 동시에 마운트해도 채널 이름이 겹치지 않게 함
       channel = supabase
-        .channel(`tasks-${tid}`)
+        .channel(`tasks-${tid}-${Math.random().toString(36).slice(2)}`)
         .on('postgres_changes', { event: '*', schema: 'public', table: 'tasks' }, () => reload(tid))
         .subscribe()
     })
