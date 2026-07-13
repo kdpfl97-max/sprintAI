@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useTeamStore, ROLE_OPTIONS, COLOR_OPTIONS } from '../store/useTeamStore'
 import { useAuthStore } from '../store/useAuthStore'
+import logo from '../assets/logo.png'
 
 const inp = {
   width: '100%', padding: '11px 14px', border: '1px solid #E8EAED',
@@ -95,8 +96,7 @@ export default function OnboardingPage() {
 
         {/* 로고 */}
         <div style={{ textAlign: 'center', marginBottom: 24 }}>
-          <div style={{ width: 48, height: 48, borderRadius: 14, background: '#EFF6FF', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 22, margin: '0 auto 10px' }}>🚀</div>
-          <h1 style={{ fontSize: 18, fontWeight: 800, color: '#111827', marginBottom: 2 }}>SprintAI</h1>
+          <img src={logo} alt="SprintAI" style={{ height: 40, margin: '0 auto 10px', display: 'block' }} />
           <p style={{ fontSize: 12, color: '#9CA3AF' }}>소규모 팀 AI 스프린트 플래너</p>
         </div>
 

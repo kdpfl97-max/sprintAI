@@ -6,6 +6,7 @@ import { useNotificationStore } from '../../store/useNotificationStore'
 import { useState } from 'react'
 import { useTeamStore } from '../../store/useTeamStore'
 import StatusIcon from '../StatusIcon'
+import logo from '../../assets/logo.png'
 
 // 사이드바와 동일한 브랜드 컬러
 const C = {
@@ -188,11 +189,8 @@ function HamburgerDrawer({ onClose, currentUser }) {
         {/* 헤더 */}
         <div style={{ padding: '20px 20px 16px', borderBottom: `1px solid ${C.divider}` }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-            <div style={{ width: 36, height: 36, borderRadius: 10, background: 'rgba(255,255,255,0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18 }}>🚀</div>
-            <div>
-              <p style={{ fontSize: 16, fontWeight: 800, color: C.textMain }}>SprintAI</p>
-              <p style={{ fontSize: 11, color: C.textSub }}>전체 메뉴</p>
-            </div>
+            <img src={logo} alt="SprintAI" style={{ height: 26, display: 'block' }} />
+            <p style={{ fontSize: 11, color: C.textSub }}>전체 메뉴</p>
           </div>
         </div>
 
@@ -257,9 +255,11 @@ export default function AppLayout() {
         {/* 좌측 여백 균형용 */}
         <div style={{ width: 36 }} />
         <button onClick={() => navigate('/dashboard')} style={{
-          flex: 1, textAlign: 'center', fontSize: 15, fontWeight: 800, color: C.textMain, letterSpacing: '-0.3px',
+          flex: 1, display: 'flex', justifyContent: 'center',
           border: 'none', background: 'transparent', padding: 0, cursor: 'pointer',
-        }}>SprintAI</button>
+        }}>
+          <img src={logo} alt="SprintAI" style={{ height: 22, display: 'block' }} />
+        </button>
         <button onClick={() => setShowDrawer(true)} style={{ width: 36, height: 36, border: 'none', background: 'rgba(255,255,255,0.12)', borderRadius: 10, cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 4, flexShrink: 0 }}>
           <div style={{ width: 16, height: 2, background: '#fff', borderRadius: 1 }} />
           <div style={{ width: 16, height: 2, background: '#fff', borderRadius: 1 }} />
