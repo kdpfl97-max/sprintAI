@@ -82,6 +82,60 @@ function SectionTitle({ children, count, countColor }) {
   )
 }
 
+// 진행도 기반 AI 인사이트 문구 생성 — ponytail: 규칙 기반 요약(다른 AI 화면들과 동일한 mock 컨벤션)
+function buildProjectInsight({ pct, daysLeft, totalDays, overdueCount, blockerCount, unassignedCount, topOverloaded }) {
+  const lines = []
+
+  if (daysLeft <= 0) {
+    lines.push(
+      pct >= 100
+        ? '마감일 안에 모든 업무를 완료했어요. 좋은 페이스였어요.'
+        : `마감일이 지났는데 완료율은 ${pct}%예요. 남은 업무 범위를 줄이거나 다음 계획으로 넘길지 빠르게 정해야 해요.`
+    )
+  } else {
+    const expectedPct = totalDays > 0 ? Math.round(((totalDays - daysLeft) / totalDays) * 100) : 0
+    if (pct >= expectedPct + 10) {
+      lines.push(`완료율 ${pct}%로 예상 진행 속도(${expectedPct}%)보다 앞서 있어요. 지금 페이스를 유지하면 여유 있게 끝날 것 같아요.`)
+    } else if (pct < expectedPct - 10) {
+      lines.push(`완료율 ${pct}%로 예상 진행 속도(${expectedPct}%)보다 뒤처져 있어요. 남은 ${daysLeft}일 안에 속도를 올려야 해요.`)
+    } else {
+      lines.push(`완료율 ${pct}%로 대체로 일정대로 진행되고 있어요. 남은 기간은 ${daysLeft}일이에요.`)
+    }
+  }
+
+  if (blockerCount > 0) {
+    lines.push(`가장 시급한 건 블로커 ${blockerCount}개예요 — 선행 업무부터 풀어야 뒤 태스크들이 움직여요.`)
+  } else if (overdueCount > 0) {
+    lines.push(`마감일이 지난 업무가 ${overdueCount}개 있어요. 담당자와 일정을 재조정해보세요.`)
+  } else if (unassignedCount > 0) {
+    lines.push(`담당자가 없는 업무가 ${unassignedCount}개예요. 먼저 배정해야 착수가 시작돼요.`)
+  } else if (topOverloaded) {
+    lines.push(`${topOverloaded}님의 남은 작업량이 많아요. 다른 팀원에게 일부 재배정을 고려해보세요.`)
+  } else {
+    lines.push('특별한 리스크 없이 순조롭게 진행되고 있어요.')
+  }
+
+  return lines.join(' ')
+}
+
+function AIInsightCard({ text }) {
+  return (
+    <div style={{
+      borderRadius: 16, border: '1px solid #DDD6FE',
+      background: 'linear-gradient(135deg, #F5F3FF 0%, #EFF6FF 100%)',
+      padding: '16px 20px', display: 'flex', gap: 12, alignItems: 'flex-start',
+    }}>
+      <div style={{ width: 32, height: 32, borderRadius: 10, background: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+        <StatusIcon type="ai" size={16} />
+      </div>
+      <div style={{ minWidth: 0 }}>
+        <p style={{ fontSize: 12, fontWeight: 700, color: '#7C3AED', marginBottom: 4 }}>AI 인사이트</p>
+        <p style={{ fontSize: 13, color: '#374151', lineHeight: 1.6 }}>{text}</p>
+      </div>
+    </div>
+  )
+}
+
 // PM용 확인 필요 항목 카드
 function AlertCard({ type, label, desc, level = 'warn', action, onAction }) {
   const styles = {
@@ -625,9 +679,11 @@ function PMHome({ currentUser, sprint, onSendNotification, teamMembers = [], upd
   const pct       = totalH > 0 ? Math.round((doneH / totalH) * 100) : 0
 
   const parseDate = d => new Date(d.replace(/\./g, '-'))
+  const startDate = parseDate(sprint.startDate)
   const endDate   = parseDate(sprint.endDate)
   const today     = new Date(); today.setHours(0, 0, 0, 0)
   const daysLeft  = Math.ceil((endDate - today) / 86400000)
+  const totalDays = Math.max(1, Math.round((endDate - startDate) / 86400000))
   const daysLabel = daysLeft > 0 ? `D-${daysLeft}` : daysLeft === 0 ? 'D-Day' : `D+${Math.abs(daysLeft)}`
 
   const noAssignee  = tasks.filter(t => !t.member)
@@ -813,6 +869,17 @@ function PMHome({ currentUser, sprint, onSendNotification, teamMembers = [], upd
           ))}
         </div>
       </div>
+
+      {/* AI 인사이트 */}
+      {tasks.length > 0 && (
+        <AIInsightCard text={buildProjectInsight({
+          pct, daysLeft, totalDays,
+          overdueCount: overdueAll.length,
+          blockerCount: blockerTasks.length,
+          unassignedCount: noAssignee.length,
+          topOverloaded: overloaded[0],
+        })} />
+      )}
 
       {/* 태스크 상태 분포 */}
       <div style={{ ...card, padding: '16px 20px' }}>

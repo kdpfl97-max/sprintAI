@@ -1,7 +1,7 @@
 import {
   ShieldAlert, CheckCircle2, Megaphone, Clock, MessageCircle,
   RefreshCw, PartyPopper, Search, Rocket, Pin, AlertTriangle,
-  Info, UserX, ListTodo,
+  Info, UserX, ListTodo, Sparkles,
 } from 'lucide-react'
 
 // 알림/상태 신호에 쓰는 아이콘 — 의미별로 하나만 매핑해 일관성 유지
@@ -22,6 +22,7 @@ export const ICON_MAP = {
   info:      { Icon: Info,          color: '#2563EB' },
   unassigned:{ Icon: UserX,         color: '#D97706' },
   backlog:   { Icon: ListTodo,      color: '#6B7280' },
+  ai:        { Icon: Sparkles,      color: '#7C3AED' },
 }
 
 export default function StatusIcon({ type, size = 16, style }) {
