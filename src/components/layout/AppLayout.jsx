@@ -189,7 +189,9 @@ function HamburgerDrawer({ onClose, currentUser }) {
         {/* 헤더 */}
         <div style={{ padding: '20px 20px 16px', borderBottom: `1px solid ${C.divider}` }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-            <img src={logo} alt="SprintAI" style={{ height: 26, display: 'block' }} />
+            <div style={{ background: '#fff', borderRadius: 10, padding: '6px 10px', display: 'flex', alignItems: 'center' }}>
+              <img src={logo} alt="SprintAI" style={{ height: 20, display: 'block' }} />
+            </div>
             <p style={{ fontSize: 11, color: C.textSub }}>전체 메뉴</p>
           </div>
         </div>
@@ -258,7 +260,9 @@ export default function AppLayout() {
           flex: 1, display: 'flex', justifyContent: 'center',
           border: 'none', background: 'transparent', padding: 0, cursor: 'pointer',
         }}>
-          <img src={logo} alt="SprintAI" style={{ height: 22, display: 'block' }} />
+          <div style={{ background: '#fff', borderRadius: 8, padding: '4px 8px', display: 'flex', alignItems: 'center' }}>
+            <img src={logo} alt="SprintAI" style={{ height: 16, display: 'block' }} />
+          </div>
         </button>
         <button onClick={() => setShowDrawer(true)} style={{ width: 36, height: 36, border: 'none', background: 'rgba(255,255,255,0.12)', borderRadius: 10, cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 4, flexShrink: 0 }}>
           <div style={{ width: 16, height: 2, background: '#fff', borderRadius: 1 }} />

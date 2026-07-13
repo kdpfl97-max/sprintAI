@@ -71,9 +71,9 @@ export default function Sidebar() {
       <div style={{ padding: '20px 20px 16px', borderBottom: `1px solid ${C.divider}` }}>
         <button onClick={() => navigate('/dashboard')} style={{
           display: 'flex', alignItems: 'center',
-          border: 'none', background: 'transparent', padding: 0, cursor: 'pointer',
+          border: 'none', background: '#fff', borderRadius: 10, padding: '6px 10px', cursor: 'pointer',
         }}>
-          <img src={logo} alt="SprintAI" style={{ height: 28, display: 'block' }} />
+          <img src={logo} alt="SprintAI" style={{ height: 22, display: 'block' }} />
         </button>
         <span style={{
           display: 'inline-block', marginTop: 8,
