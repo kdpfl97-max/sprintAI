@@ -10,7 +10,8 @@ function generateCode() {
 
 let pending = null
 
-// ponytail: 아직 로그인이 없어서 "이 브라우저 = 이 팀"으로 고정.
+// ponytail: 아직 로그인이 없어서 팀을 브라우저별로 구분할 방법이 없다.
+// 아직 멀티테넌트도 아니므로 "이미 있는 팀이 있으면 그걸 쓰고, 없으면 새로 만든다"로 단일 팀 취급.
 // 실제 인증 붙이면 team_members(user_id=auth.uid())로 소속 팀을 찾도록 교체.
 export function ensureTeamId() {
   if (pending) return pending
@@ -20,21 +21,25 @@ export function ensureTeamId() {
       const { data } = await supabase.from('teams').select('id').eq('id', savedId).maybeSingle()
       if (data) return data.id
     }
-    const code = localStorage.getItem(TEAM_CODE_KEY) || generateCode()
-    const { data: existing } = await supabase.from('teams').select('id').eq('team_code', code).maybeSingle()
-    let id = existing?.id
-    if (!id) {
-      const { data: created, error } = await supabase
-        .from('teams')
-        .insert({ name: '내 팀', team_code: code })
-        .select('id')
-        .single()
-      if (error) throw error
-      id = created.id
+
+    const { data: anyTeam } = await supabase
+      .from('teams').select('id, team_code').order('created_at', { ascending: true }).limit(1).maybeSingle()
+    if (anyTeam) {
+      localStorage.setItem(TEAM_ID_KEY, anyTeam.id)
+      localStorage.setItem(TEAM_CODE_KEY, anyTeam.team_code)
+      return anyTeam.id
     }
-    localStorage.setItem(TEAM_ID_KEY, id)
+
+    const code = generateCode()
+    const { data: created, error } = await supabase
+      .from('teams')
+      .insert({ name: '내 팀', team_code: code })
+      .select('id')
+      .single()
+    if (error) throw error
+    localStorage.setItem(TEAM_ID_KEY, created.id)
     localStorage.setItem(TEAM_CODE_KEY, code)
-    return id
+    return created.id
   })()
   return pending
 }
