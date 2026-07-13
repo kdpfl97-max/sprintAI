@@ -10,25 +10,11 @@ import { useScheduleStore } from '../store/useScheduleStore'
 import { useCapacityHistoryStore } from '../store/useCapacityHistoryStore'
 import { useIsMobile } from '../hooks/useIsMobile'
 import StatusIcon from '../components/StatusIcon'
-
-const ROLE_KEYWORDS = {
-  백엔드:    /api|서버|db|데이터베이스|인증|로그인|crud|저장|연동|스키마|마이그레이션|백엔드|backend/,
-  프론트:    /ui|화면|페이지|컴포넌트|버튼|레이아웃|뷰|렌더|표시|모달|폼|프론트|frontend/,
-  'AI/백엔드': /ai|알고리즘|추천|분석|모델|자동|예측|계획|초안|분해/,
-  디자인:    /디자인|아이콘|스타일|색상|대시보드|ux|ui 디자인/,
-}
-function suggestMembers(title, members) {
-  const t = title.toLowerCase()
-  const eligible = members.filter(m => m.role !== 'PM')
-  if (!eligible.length) return []
-  const scores = eligible.map(m => {
-    let score = 0
-    Object.entries(ROLE_KEYWORDS).forEach(([key, re]) => { if (m.role.includes(key) && re.test(t)) score += 3 })
-    return { ...m, score }
-  })
-  const max = Math.max(...scores.map(s => s.score))
-  return (max <= 0 ? [scores[0]] : scores.filter(s => s.score === max)).slice(0, 2)
-}
+import {
+  deriveAlerts, deriveTrajectory, deriveWorkload,
+  deriveMemberNow, deriveMemberNext, deriveMyDeadlines, deriveTeamContext,
+} from '../utils/dashboardSelectors'
+import { generatePMAdvice, generateMemberAdvice, getDismissedAdviceIds, dismissAdvice } from '../utils/adviceEngine'
 
 const card = {
   background: '#FFFFFF',
@@ -49,7 +35,7 @@ function Avatar({ initials, color, size = 24, fontSize = 10 }) {
 }
 
 // 완료율 도넛 링
-function DonutRing({ pct, size = 104, stroke = 10, color = '#2563EB' }) {
+function DonutRing({ pct, size = 88, stroke = 9, color = '#2563EB' }) {
   const r = (size - stroke) / 2
   const c = 2 * Math.PI * r
   const offset = c * (1 - pct / 100)
@@ -60,8 +46,8 @@ function DonutRing({ pct, size = 104, stroke = 10, color = '#2563EB' }) {
         strokeDasharray={c} strokeDashoffset={offset} strokeLinecap="round"
         transform={`rotate(-90 ${size / 2} ${size / 2})`}
         style={{ transition: 'stroke-dashoffset 0.6s ease' }} />
-      <text x="50%" y="47%" textAnchor="middle" dominantBaseline="middle" fontSize="22" fontWeight="800" fill="#111827">{pct}%</text>
-      <text x="50%" y="66%" textAnchor="middle" dominantBaseline="middle" fontSize="10" fill="#9CA3AF">완료율</text>
+      <text x="50%" y="47%" textAnchor="middle" dominantBaseline="middle" fontSize="18" fontWeight="800" fill="#111827">{pct}%</text>
+      <text x="50%" y="66%" textAnchor="middle" dominantBaseline="middle" fontSize="9" fill="#9CA3AF">완료율</text>
     </svg>
   )
 }
@@ -82,92 +68,93 @@ function SectionTitle({ children, count, countColor }) {
   )
 }
 
-// 진행도 기반 AI 인사이트 문구 생성 — ponytail: 규칙 기반 요약(다른 AI 화면들과 동일한 mock 컨벤션)
-function buildProjectInsight({ pct, daysLeft, totalDays, overdueCount, blockerCount, unassignedCount, topOverloaded }) {
-  const lines = []
-
-  if (daysLeft <= 0) {
-    lines.push(
-      pct >= 100
-        ? '마감일 안에 모든 업무를 완료했어요. 좋은 페이스였어요.'
-        : `마감일이 지났는데 완료율은 ${pct}%예요. 남은 업무 범위를 줄이거나 다음 계획으로 넘길지 빠르게 정해야 해요.`
-    )
-  } else {
-    const expectedPct = totalDays > 0 ? Math.round(((totalDays - daysLeft) / totalDays) * 100) : 0
-    if (pct >= expectedPct + 10) {
-      lines.push(`완료율 ${pct}%로 예상 진행 속도(${expectedPct}%)보다 앞서 있어요. 지금 페이스를 유지하면 여유 있게 끝날 것 같아요.`)
-    } else if (pct < expectedPct - 10) {
-      lines.push(`완료율 ${pct}%로 예상 진행 속도(${expectedPct}%)보다 뒤처져 있어요. 남은 ${daysLeft}일 안에 속도를 올려야 해요.`)
-    } else {
-      lines.push(`완료율 ${pct}%로 대체로 일정대로 진행되고 있어요. 남은 기간은 ${daysLeft}일이에요.`)
-    }
-  }
-
-  if (blockerCount > 0) {
-    lines.push(`가장 시급한 건 블로커 ${blockerCount}개예요 — 선행 업무부터 풀어야 뒤 태스크들이 움직여요.`)
-  } else if (overdueCount > 0) {
-    lines.push(`마감일이 지난 업무가 ${overdueCount}개 있어요. 담당자와 일정을 재조정해보세요.`)
-  } else if (unassignedCount > 0) {
-    lines.push(`담당자가 없는 업무가 ${unassignedCount}개예요. 먼저 배정해야 착수가 시작돼요.`)
-  } else if (topOverloaded) {
-    lines.push(`${topOverloaded}님의 남은 작업량이 많아요. 다른 팀원에게 일부 재배정을 고려해보세요.`)
-  } else {
-    lines.push('특별한 리스크 없이 순조롭게 진행되고 있어요.')
-  }
-
-  return lines.join(' ')
+function timeAgo(iso) {
+  const min = Math.floor((Date.now() - new Date(iso).getTime()) / 60000)
+  if (min < 60) return `${Math.max(1, min)}분 전`
+  const h = Math.floor(min / 60)
+  if (h < 24) return `${h}시간 전`
+  return `${Math.floor(h / 24)}일 전`
 }
 
-function AIInsightCard({ text }) {
+/* ─────────────────────────────────────────────
+   ① 지금 확인이 필요한 항목 — 4개 카드, 0건도 유지
+───────────────────────────────────────────── */
+function AlertSummaryRow({ alerts, isMobile, onRemind, navigate }) {
+  const cards = [
+    { key: 'blockers',    icon: 'blocker',    label: '블로커',              count: alerts.blockers.length,       action: '담당자 확인 →',     onClick: () => navigate('/sprint/1/board') },
+    { key: 'unassigned',  icon: 'unassigned', label: '미배정',              count: alerts.unassigned.length,     action: '재배정하기 →',      onClick: () => navigate('/sprint/1/board') },
+    { key: 'dueSoonOrOver', icon: 'deadline', label: '마감 임박·초과',      count: alerts.dueSoonOrOver.length,  action: '일정 조정 →',       onClick: () => navigate('/sprint/1/board') },
+    { key: 'stale',        icon: 'status',    label: '48h+ 미업데이트',     count: alerts.stale.length,          action: '리마인드 보내기 →', onClick: () => onRemind(alerts.stale) },
+  ]
   return (
-    <div style={{
-      borderRadius: 16, border: '1px solid #DDD6FE',
-      background: 'linear-gradient(135deg, #F5F3FF 0%, #EFF6FF 100%)',
-      padding: '16px 20px', display: 'flex', gap: 12, alignItems: 'flex-start',
-    }}>
-      <div style={{ width: 32, height: 32, borderRadius: 10, background: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-        <StatusIcon type="ai" size={16} />
-      </div>
-      <div style={{ minWidth: 0 }}>
-        <p style={{ fontSize: 12, fontWeight: 700, color: '#7C3AED', marginBottom: 4 }}>AI 인사이트</p>
-        <p style={{ fontSize: 13, color: '#374151', lineHeight: 1.6 }}>{text}</p>
-      </div>
+    <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr 1fr' : 'repeat(4, 1fr)', gap: 10 }}>
+      {cards.map(c => {
+        const zero = c.count === 0
+        return (
+          <div key={c.key} style={{ ...card, padding: '13px 15px', background: zero ? '#FAFAFA' : '#fff' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8 }}>
+              <StatusIcon type={c.icon} size={13} style={{ opacity: zero ? 0.4 : 1 }} />
+              <span style={{ fontSize: 11, fontWeight: 700, color: '#6B7280' }}>{c.label}</span>
+            </div>
+            <p style={{ fontSize: 20, fontWeight: 800, color: zero ? '#C4C9D1' : '#111827', lineHeight: 1 }}>
+              {c.count}<span style={{ fontSize: 11, fontWeight: 500, color: '#9CA3AF', marginLeft: 2 }}>건</span>
+            </p>
+            {zero ? (
+              <p style={{ fontSize: 11, color: '#9CA3AF', fontWeight: 600, marginTop: 6 }}>없음 ✓</p>
+            ) : (
+              <button onClick={c.onClick} style={{
+                marginTop: 6, padding: 0, border: 'none', background: 'none',
+                fontSize: 11, fontWeight: 700, color: '#2563EB', cursor: 'pointer',
+              }}>{c.action}</button>
+            )}
+          </div>
+        )
+      })}
     </div>
   )
 }
 
-// PM용 확인 필요 항목 카드
-function AlertCard({ type, label, desc, level = 'warn', action, onAction }) {
-  const styles = {
-    warn:   { bg: '#FFFBEB', border: '#FDE68A', color: '#D97706' },
-    danger: { bg: '#FFF5F5', border: '#FECACA', color: '#DC2626' },
-    info:   { bg: '#EFF6FF', border: '#BFDBFE', color: '#2563EB' },
-  }
-  const s = styles[level]
+/* ─────────────────────────────────────────────
+   ② 스프린트 궤도 — 신호등 + 요약 + 번다운, 완료율 도넛
+───────────────────────────────────────────── */
+const TRAJECTORY_STYLE = {
+  safe:   { bg: '#ECFDF5', border: '#A7F3D0', color: '#059669', label: 'Safe' },
+  warn:   { bg: '#FFFBEB', border: '#FDE68A', color: '#D97706', label: 'Warn' },
+  danger: { bg: '#FFF5F5', border: '#FECACA', color: '#DC2626', label: 'Danger' },
+}
+
+function TrajectoryCard({ trajectory, sprint, tasks }) {
+  const s = TRAJECTORY_STYLE[trajectory.status]
   return (
-    <div style={{
-      padding: '12px 16px', borderRadius: 12, display: 'flex', alignItems: 'center', gap: 12,
-      background: s.bg, border: `1px solid ${s.border}`,
-    }}>
-      <div style={{ width: 28, height: 28, borderRadius: 8, background: '#fff', border: `1px solid ${s.border}`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-        <StatusIcon type={type || level} size={15} />
+    <div style={{ ...card, padding: '16px 20px', flex: '2 1 420px', minWidth: 0 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
+        <span style={{
+          fontSize: 11, fontWeight: 800, padding: '3px 10px', borderRadius: 9999,
+          background: s.bg, color: s.color, border: `1px solid ${s.border}`,
+        }}>{s.label}</span>
+        <span style={{ fontSize: 12, color: '#9CA3AF' }}>스프린트 궤도</span>
       </div>
-      <div style={{ flex: 1, minWidth: 0 }}>
-        <p style={{ fontSize: 13, fontWeight: 700, color: '#111827', marginBottom: 2 }}>{label}</p>
-        <p style={{ fontSize: 11, color: '#6B7280' }}>{desc}</p>
+      <p style={{ fontSize: 14, fontWeight: 700, color: '#111827', marginBottom: 14, lineHeight: 1.5 }}>{trajectory.summary}</p>
+      <BurndownChart tasks={tasks} startDate={sprint.startDate} endDate={sprint.endDate} height={110} />
+    </div>
+  )
+}
+
+function DonutCard({ trajectory, daysLabel }) {
+  return (
+    <div style={{ ...card, padding: '16px 18px', flex: '1 1 220px', minWidth: 200, display: 'flex', alignItems: 'center', gap: 14 }}>
+      <DonutRing pct={trajectory.pct} color={trajectory.pct >= 70 ? '#10B981' : '#2563EB'} />
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+        <p style={{ fontSize: 12, color: '#6B7280' }}>{trajectory.doneCount}/{trajectory.totalCount}개 완료</p>
+        <p style={{ fontSize: 12, color: '#6B7280' }}>검토 중 {trajectory.reviewCount}개</p>
+        <p style={{ fontSize: 13, fontWeight: 800, color: trajectory.daysLeft <= 3 ? '#EF4444' : '#111827' }}>{daysLabel}</p>
       </div>
-      {action && (
-        <button onClick={onAction} style={{
-          padding: '5px 12px', fontSize: 11, fontWeight: 600, borderRadius: 8,
-          border: `1px solid ${s.border}`, background: '#fff', color: s.color, cursor: 'pointer', flexShrink: 0,
-        }}>{action}</button>
-      )}
     </div>
   )
 }
 
 // 번다운 차트 — 실제 날짜·시간 기반
-function BurndownChart({ tasks, startDate, endDate }) {
+function BurndownChart({ tasks, startDate, endDate, height = 160 }) {
   const totalH = tasks.reduce((s, t) => s + (t.estimatedHours || 0), 0)
   const doneH  = tasks.filter(t => t.status === 'done').reduce((s, t) => s + (t.estimatedHours || 0), 0)
 
@@ -178,22 +165,17 @@ function BurndownChart({ tasks, startDate, endDate }) {
   const totalDays = Math.max(1, Math.round((end - start) / 86400000))
   const elapsed   = Math.min(totalDays, Math.max(0, Math.round((today - start) / 86400000)))
 
-  // 이상적: 매일 균등 감소
-  // 실제: 오늘까지 doneH만큼 감소했다고 가정 (완료 날짜 데이터 없음)
-  const W = 500, H = 160, PAD_L = 40, PAD_R = 20, PAD_T = 20, PAD_B = 30
+  const W = 500, H = height, PAD_L = 40, PAD_R = 20, PAD_T = 14, PAD_B = 26
   const chartW = W - PAD_L - PAD_R
   const chartH = H - PAD_T - PAD_B
 
   function xOf(day) { return PAD_L + (day / totalDays) * chartW }
   function yOf(h)   { return PAD_T + (1 - h / Math.max(totalH, 1)) * chartH }
 
-  // 이상적 라인
   const idealStart = `${xOf(0)},${yOf(totalH)}`
   const idealEnd   = `${xOf(totalDays)},${yOf(0)}`
 
-  // 실제 라인 (오늘까지)
   const actualPts  = `${xOf(0)},${yOf(totalH)} ${xOf(elapsed)},${yOf(totalH - doneH)}`
-  // 오늘 이후 점선 추정 (현재 속도로 계속)
   const ratePerDay = elapsed > 0 ? doneH / elapsed : 0
   const projectedDaysLeft = ratePerDay > 0 ? (totalH - doneH) / ratePerDay : 0
   const projEndDay = Math.min(totalDays, elapsed + projectedDaysLeft)
@@ -210,95 +192,118 @@ function BurndownChart({ tasks, startDate, endDate }) {
           <stop offset="100%" stopColor="#2563EB" stopOpacity="0"/>
         </linearGradient>
       </defs>
-
-      {/* 그리드 수평선 */}
-      {[0, 0.25, 0.5, 0.75, 1].map(r => (
-        <line key={r} x1={PAD_L} y1={yOf(totalH * r)} x2={W - PAD_R} y2={yOf(totalH * r)}
-          stroke="#F3F4F6" strokeWidth="1"/>
+      {[0, 0.5, 1].map(r => (
+        <line key={r} x1={PAD_L} y1={yOf(totalH * r)} x2={W - PAD_R} y2={yOf(totalH * r)} stroke="#F3F4F6" strokeWidth="1"/>
       ))}
-
-      {/* 이상적 라인 */}
       <line x1={idealStart.split(',')[0]} y1={idealStart.split(',')[1]}
             x2={idealEnd.split(',')[0]}   y2={idealEnd.split(',')[1]}
         stroke="#D1D5DB" strokeWidth="1.5" strokeDasharray="5,3"/>
-
-      {/* 실제 라인 */}
-      <polyline points={actualPts}
-        fill="none" stroke="#2563EB" strokeWidth="2.5" strokeLinejoin="round"/>
-      {/* 예상 라인 */}
+      <polyline points={actualPts} fill="none" stroke="#2563EB" strokeWidth="2.5" strokeLinejoin="round"/>
       {elapsed < totalDays && ratePerDay > 0 && (
-        <polyline points={projPts}
-          fill="none" stroke="#2563EB" strokeWidth="1.5" strokeDasharray="4,3" opacity="0.4"/>
+        <polyline points={projPts} fill="none" stroke="#2563EB" strokeWidth="1.5" strokeDasharray="4,3" opacity="0.4"/>
       )}
-
-      {/* 채움 */}
-      <path d={`M${PAD_L},${yOf(totalH)} ${actualPts.split(' ').slice(1).join(' ')} ${xOf(elapsed)},${PAD_T + chartH} ${PAD_L},${PAD_T + chartH}Z`}
-        fill="url(#bluefill)"/>
-
-      {/* 오늘 점 */}
-      <circle cx={todayX} cy={todayY} r="5" fill="#2563EB" stroke="white" strokeWidth="2"/>
+      <path d={`M${PAD_L},${yOf(totalH)} ${actualPts.split(' ').slice(1).join(' ')} ${xOf(elapsed)},${PAD_T + chartH} ${PAD_L},${PAD_T + chartH}Z`} fill="url(#bluefill)"/>
+      <circle cx={todayX} cy={todayY} r="4.5" fill="#2563EB" stroke="white" strokeWidth="2"/>
       <line x1={todayX} y1={PAD_T} x2={todayX} y2={PAD_T + chartH} stroke="#2563EB" strokeWidth="1" strokeDasharray="3,2" opacity="0.3"/>
-
-      {/* 레이블 */}
-      <text x={PAD_L}     y={H - 4} fontSize="10" fill="#9CA3AF">시작</text>
-      <text x={todayX - 8} y={H - 4} fontSize="10" fill="#2563EB" fontWeight="bold">오늘</text>
-      <text x={W - PAD_R - 20} y={H - 4} fontSize="10" fill="#9CA3AF">종료</text>
-      <text x={PAD_L + 2} y={PAD_T + 12} fontSize="10" fill="#9CA3AF">{totalH}h</text>
-      <text x={PAD_L + 2} y={PAD_T + chartH} fontSize="10" fill="#9CA3AF">0</text>
+      <text x={PAD_L}     y={H - 4} fontSize="9" fill="#9CA3AF">시작</text>
+      <text x={todayX - 8} y={H - 4} fontSize="9" fill="#2563EB" fontWeight="bold">오늘</text>
+      <text x={W - PAD_R - 18} y={H - 4} fontSize="9" fill="#9CA3AF">종료</text>
     </svg>
   )
 }
 
-// 태스크 상태 분포 바
-function StatusDistBar({ tasks }) {
-  const STATUS_LIST = [
-    { key: 'todo',       label: '예정',    color: '#E5E7EB' },
-    { key: 'inprogress', label: '진행 중', color: '#2563EB' },
-    { key: 'review',     label: '검토 중', color: '#F59E0B' },
-    { key: 'done',       label: '완료',    color: '#10B981' },
-    { key: null,         label: '미배정',  color: '#9CA3AF' },
-  ]
-  const counts = {}
-  tasks.forEach(t => {
-    const k = t.member ? (t.status || 'todo') : null
-    counts[k] = (counts[k] || 0) + 1
-  })
-  const total = tasks.length || 1
+/* ─────────────────────────────────────────────
+   ③ AI 조언 — 규칙 기반, 근거+적용/무시 (외부 API 없음)
+───────────────────────────────────────────── */
+const ADVICE_LABEL = { reassign: '재배정 제안', capacity: '캐파 조정 제안', split: '분할 제안', order: '순서 제안', ready: '시작 가능' }
 
+function AIAdviceCard({ items, onApply, onDismiss }) {
   return (
-    <div>
-      {/* 분포 바 */}
-      <div style={{ display: 'flex', height: 10, borderRadius: 6, overflow: 'hidden', gap: 1, marginBottom: 10 }}>
-        {STATUS_LIST.map(({ key, color }) => {
-          const pct = ((counts[key] || 0) / total) * 100
-          if (pct === 0) return null
-          return <div key={String(key)} style={{ width: `${pct}%`, background: color }} />
-        })}
-      </div>
-      {/* 범례 */}
-      <div style={{ display: 'flex', gap: 14, flexWrap: 'wrap' }}>
-        {STATUS_LIST.map(({ key, label, color }) => {
-          const n = counts[key] || 0
-          if (n === 0) return null
-          return (
-            <div key={String(key)} style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
-              <div style={{ width: 8, height: 8, borderRadius: 2, background: color, flexShrink: 0 }} />
-              <span style={{ fontSize: 12, color: '#6B7280' }}>{label}</span>
-              <span style={{ fontSize: 12, fontWeight: 700, color: '#111827' }}>{n}</span>
+    <div style={{ ...card, padding: '16px 20px' }}>
+      <SectionTitle>AI 조언</SectionTitle>
+      {items.length === 0 ? (
+        <p style={{ fontSize: 13, color: '#9CA3AF' }}>지금은 조언할 것이 없어요 — 계획이 안정적이에요</p>
+      ) : (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+          {items.map(a => (
+            <div key={a.id} style={{ padding: '12px 14px', borderRadius: 12, border: '1px solid #DDD6FE', background: '#F5F3FF' }}>
+              <span style={{ fontSize: 10, fontWeight: 800, color: '#7C3AED', background: '#fff', border: '1px solid #DDD6FE', padding: '2px 8px', borderRadius: 9999 }}>
+                ✦ {ADVICE_LABEL[a.type] || '제안'}
+              </span>
+              <p style={{ fontSize: 13, fontWeight: 600, color: '#111827', marginTop: 8 }}>{a.message}</p>
+              <p style={{ fontSize: 11, color: '#9CA3AF', marginTop: 3 }}>{a.evidence}</p>
+              <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
+                <button onClick={() => onApply(a)} style={{ padding: '5px 14px', fontSize: 11, fontWeight: 700, borderRadius: 8, border: 'none', background: '#7C3AED', color: '#fff', cursor: 'pointer' }}>적용</button>
+                <button onClick={() => onDismiss(a.id)} style={{ padding: '5px 14px', fontSize: 11, fontWeight: 600, borderRadius: 8, border: '1px solid #DDD6FE', background: '#fff', color: '#7C3AED', cursor: 'pointer' }}>무시</button>
+              </div>
             </div>
-          )
-        })}
-      </div>
+          ))}
+        </div>
+      )}
     </div>
   )
 }
 
-// 간트 차트
-function GanttChart({ tasks, startDate, endDate }) {
+/* ─────────────────────────────────────────────
+   ④ 팀원별 워크로드 — 배정h/가용h만, 접속시간·점수 없음
+───────────────────────────────────────────── */
+const WORKLOAD_STATUS = {
+  over:   { label: '과부하', bg: '#FEE2E2', color: '#DC2626' },
+  light:  { label: '여유',   bg: '#EFF6FF', color: '#2563EB' },
+  normal: { label: '정상',   bg: '#D1FAE5', color: '#059669' },
+}
+
+function WorkloadTable({ workload }) {
+  return (
+    <div style={{ ...card, padding: '16px 20px' }}>
+      <SectionTitle>팀원별 워크로드</SectionTitle>
+      {workload.length === 0 ? (
+        <p style={{ fontSize: 13, color: '#9CA3AF' }}>아직 배정된 태스크가 없어요. 이번 계획 만들기에서 담당자를 배정해보세요.</p>
+      ) : (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+          {workload.map(w => {
+            const st = WORKLOAD_STATUS[w.status]
+            return (
+              <div key={w.member.name} style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                <Avatar initials={w.member.initials} color={w.member.color} size={26} fontSize={10} />
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
+                    <span style={{ fontSize: 12, fontWeight: 600, color: '#111827' }}>{w.member.name}</span>
+                    <span style={{ fontSize: 10, fontWeight: 700, padding: '1px 7px', borderRadius: 9999, background: st.bg, color: st.color }}>{st.label}</span>
+                    <span style={{ fontSize: 11, color: '#9CA3AF', marginLeft: 'auto' }}>{w.assignedH}h / {w.cap}h</span>
+                  </div>
+                  <div style={{ height: 6, background: '#F3F4F6', borderRadius: 3, overflow: 'hidden' }}>
+                    <div style={{ height: '100%', width: `${Math.min(100, w.pct)}%`, background: st.color, borderRadius: 3 }} />
+                  </div>
+                </div>
+              </div>
+            )
+          })}
+        </div>
+      )}
+      <p style={{ fontSize: 10, color: '#C4C9D1', marginTop: 12, borderTop: '1px solid #F3F4F6', paddingTop: 10 }}>
+        접속 시간·생산성 점수는 표시하지 않습니다
+      </p>
+    </div>
+  )
+}
+
+/* ─────────────────────────────────────────────
+   간트차트 — CSS grid, 역할별 그룹, 선행 배지, 오늘 세로선
+───────────────────────────────────────────── */
+function roleGroup(task, teamMembers) {
+  if (!task.member) return '미배정'
+  const role = teamMembers.find(m => m.name === task.member.name)?.role || ''
+  if (role === 'PM') return '기획'
+  if (role.includes('디자인')) return '디자인'
+  return '개발'
+}
+
+function GanttChart({ tasks, startDate, endDate, teamMembers, navigate }) {
   const DAY_W   = 34
   const ROW_H   = 40
-  const LABEL_W = 160
-  const HDR_H   = 48  // 월 행(24) + 일 행(24)
+  const LABEL_W = 170
+  const HDR_H   = 48
 
   const toD = s => { const d = new Date(s.replace(/\./g, '-')); d.setHours(0,0,0,0); return d }
   const start = toD(startDate)
@@ -306,22 +311,18 @@ function GanttChart({ tasks, startDate, endDate }) {
   const today = new Date(); today.setHours(0,0,0,0)
   const totalDays = Math.max(1, Math.round((end - start) / 86400000) + 1)
 
-  // 날짜 배열
   const days = Array.from({ length: totalDays }, (_, i) => {
     const d = new Date(start.getTime() + i * 86400000)
     return { d, isToday: d.getTime() === today.getTime(), isWeekend: d.getDay() === 0 || d.getDay() === 6 }
   })
 
-  // 월 그룹 (헤더 1행)
   const months = []
   days.forEach(({ d }) => {
     const key = `${d.getFullYear()}-${d.getMonth()}`
-    if (!months.length || months[months.length - 1].key !== key)
-      months.push({ key, label: `${d.getMonth() + 1}월`, count: 1 })
+    if (!months.length || months[months.length - 1].key !== key) months.push({ key, label: `${d.getMonth() + 1}월`, count: 1 })
     else months[months.length - 1].count++
   })
 
-  // 바 위치 계산
   function barProps(task) {
     const s = task.startDate ? toD(task.startDate) : start
     const e = task.dueDate   ? toD(task.dueDate)   : end
@@ -330,154 +331,124 @@ function GanttChart({ tasks, startDate, endDate }) {
     return { left: startOff * DAY_W, width: Math.max(DAY_W, (endOff - startOff) * DAY_W) }
   }
 
-  const todayOff = today >= start && today <= end
-    ? Math.round((today - start) / 86400000)
-    : null
-
-  const STATUS_COLOR = { done: '#10B981', inprogress: '#2563EB', review: '#F59E0B', todo: '#94A3B8' }
+  const todayOff = today >= start && today <= end ? Math.round((today - start) / 86400000) : null
+  const STATUS_COLOR = { done: '#9CA3AF', inprogress: '#2563EB', review: '#F59E0B', todo: '#CBD5E1' }
   const totalW = LABEL_W + totalDays * DAY_W
 
-  const stickyLabel = (bg, children) => ({
+  const stickyLabel = (bg) => ({
     position: 'sticky', left: 0, zIndex: 5,
     width: LABEL_W, minWidth: LABEL_W, flexShrink: 0,
     background: bg, borderRight: '1px solid #E8EAED',
     display: 'flex', alignItems: 'center',
   })
 
+  // 역할별 그룹핑
+  const groups = ['기획', '디자인', '개발', '미배정']
+    .map(g => ({ label: g, tasks: tasks.filter(t => roleGroup(t, teamMembers) === g) }))
+    .filter(g => g.tasks.length > 0)
+
   return (
     <div style={{ overflowX: 'auto', borderRadius: 8, border: '1px solid #E8EAED' }}>
       <div style={{ minWidth: totalW, display: 'flex', flexDirection: 'column' }}>
-
-        {/* ── 헤더 ── */}
+        {/* 헤더 */}
         <div style={{ display: 'flex', height: HDR_H, borderBottom: '2px solid #E8EAED', background: '#F9FAFB' }}>
-          {/* 좌측 sticky 헤더 */}
           <div style={{ ...stickyLabel('#F9FAFB'), height: HDR_H, flexDirection: 'column', justifyContent: 'flex-end', padding: '0 12px 6px' }}>
             <span style={{ fontSize: 11, fontWeight: 600, color: '#9CA3AF' }}>태스크</span>
           </div>
-
-          {/* 날짜 헤더 열 */}
           <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-            {/* 월 행 */}
             <div style={{ display: 'flex', height: 24, borderBottom: '1px solid #E8EAED' }}>
               {months.map((m, i) => (
-                <div key={i} style={{
-                  width: m.count * DAY_W, flexShrink: 0,
-                  display: 'flex', alignItems: 'center', paddingLeft: 8,
-                  fontSize: 11, fontWeight: 700, color: '#374151',
-                  borderRight: '1px solid #E8EAED',
-                }}>{m.label}</div>
+                <div key={i} style={{ width: m.count * DAY_W, flexShrink: 0, display: 'flex', alignItems: 'center', paddingLeft: 8, fontSize: 11, fontWeight: 700, color: '#374151', borderRight: '1px solid #E8EAED' }}>{m.label}</div>
               ))}
             </div>
-            {/* 일 행 */}
             <div style={{ display: 'flex', height: 24 }}>
               {days.map(({ d, isToday, isWeekend }, i) => (
                 <div key={i} style={{
-                  width: DAY_W, flexShrink: 0,
-                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  width: DAY_W, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center',
                   fontSize: 10, fontWeight: isToday ? 800 : 400,
                   color: isToday ? '#EF4444' : isWeekend ? '#CBD5E1' : '#64748B',
-                  background: isToday ? '#FEF2F2' : 'transparent',
-                  borderRight: '1px solid #F1F5F9',
+                  background: isToday ? '#FEF2F2' : 'transparent', borderRight: '1px solid #F1F5F9',
                 }}>{d.getDate()}</div>
               ))}
             </div>
           </div>
         </div>
 
-        {/* ── 태스크 행 ── */}
-        {tasks.map((task, i) => {
-          const color = STATUS_COLOR[task.status] || '#94A3B8'
-          const { left, width } = barProps(task)
-          const rowBg = i % 2 === 0 ? '#FFFFFF' : '#FAFAFA'
-          const isDone = task.status === 'done'
-
-          return (
-            <div key={task.id} style={{ display: 'flex', height: ROW_H, borderBottom: '1px solid #F1F5F9' }}>
-              {/* 좌측 sticky 레이블 */}
-              <div style={{ ...stickyLabel(rowBg), height: ROW_H, gap: 8, padding: '0 10px', overflow: 'hidden' }}>
-                <div style={{
-                  width: 24, height: 24, borderRadius: '50%', flexShrink: 0,
-                  background: task.member?.color ?? '#E5E7EB',
-                  display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  fontSize: 9, fontWeight: 700, color: '#fff',
-                }}>
-                  {task.member?.initials ?? '?'}
-                </div>
-                <div style={{ overflow: 'hidden', minWidth: 0 }}>
-                  <div style={{ fontSize: 12, fontWeight: 500, color: '#1E293B', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                    {task.title}
-                  </div>
-                  {task.member && (
-                    <div style={{ fontSize: 10, color: '#94A3B8', marginTop: 1 }}>{task.member.name}</div>
-                  )}
-                </div>
+        {/* 역할별 그룹 */}
+        {groups.map(group => (
+          <div key={group.label}>
+            <div style={{ display: 'flex', height: 26, background: '#F4F5F7', borderBottom: '1px solid #E8EAED' }}>
+              <div style={{ ...stickyLabel('#F4F5F7'), height: 26, padding: '0 12px' }}>
+                <span style={{ fontSize: 11, fontWeight: 800, color: '#4B5563' }}>{group.label} · {group.tasks.length}</span>
               </div>
-
-              {/* 타임라인 영역 */}
-              <div style={{ flex: 1, position: 'relative', background: rowBg, overflow: 'hidden' }}>
-                {/* 일 구분선 + 오늘 열 하이라이트 */}
-                {days.map(({ isToday, isWeekend }, di) => (
-                  <div key={di} style={{
-                    position: 'absolute', left: di * DAY_W, top: 0,
-                    width: DAY_W, height: '100%',
-                    background: isToday ? 'rgba(239,68,68,0.06)' : isWeekend ? 'rgba(0,0,0,0.018)' : 'transparent',
-                    borderRight: '1px solid #F1F5F9',
-                    zIndex: 0,
-                  }}/>
-                ))}
-
-                {/* 오늘 세로선 */}
-                {todayOff !== null && (
-                  <div style={{
-                    position: 'absolute', left: todayOff * DAY_W + DAY_W / 2 - 1,
-                    top: 0, width: 2, height: '100%',
-                    background: '#EF4444', opacity: 0.55, zIndex: 2,
-                  }}/>
-                )}
-
-                {/* 간트 바 */}
-                <div style={{
-                  position: 'absolute',
-                  left: left + 2, top: '50%', transform: 'translateY(-50%)',
-                  width: width - 4, height: 22,
-                  background: color,
-                  borderRadius: 6,
-                  opacity: isDone ? 1 : task.status === 'todo' ? 0.55 : 0.88,
-                  zIndex: 3,
-                  display: 'flex', alignItems: 'center',
-                  paddingLeft: 8, paddingRight: 6,
-                  overflow: 'hidden',
-                  boxShadow: '0 1px 3px rgba(0,0,0,0.12)',
-                }}>
-                  {isDone && <span style={{ fontSize: 10, color: '#fff', marginRight: 4 }}>✓</span>}
-                  {width > 56 && (
-                    <span style={{ fontSize: 10, fontWeight: 600, color: isDone || task.status === 'inprogress' || task.status === 'review' ? '#fff' : '#475569', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                      {task.title}
-                    </span>
-                  )}
-                </div>
-
-                {/* 블로커 뱃지 */}
-                {task.blocker && (
-                  <div style={{
-                    position: 'absolute', left: left + width - 4, top: '50%', transform: 'translateY(-50%)',
-                    fontSize: 10, zIndex: 4, lineHeight: 1,
-                  }}>🔴</div>
-                )}
-              </div>
+              <div style={{ flex: 1 }} />
             </div>
-          )
-        })}
+            {group.tasks.map((task, i) => {
+              const color = STATUS_COLOR[task.status] || '#CBD5E1'
+              const { left, width } = barProps(task)
+              const rowBg = i % 2 === 0 ? '#FFFFFF' : '#FAFAFA'
+              const isDone = task.status === 'done'
+              const blocked = task.status !== 'done' && task.blocker && tasks.find(b => b.id === task.blocker && b.status !== 'done')
+              const blockerTitle = blocked ? tasks.find(b => b.id === task.blocker)?.title : null
+
+              return (
+                <div key={task.id} style={{ display: 'flex', height: ROW_H, borderBottom: '1px solid #F1F5F9' }}>
+                  <div style={{ ...stickyLabel(rowBg), height: ROW_H, gap: 8, padding: '0 10px', overflow: 'hidden' }}>
+                    <div style={{ width: 22, height: 22, borderRadius: '50%', flexShrink: 0, background: task.member?.color ?? '#E5E7EB', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 9, fontWeight: 700, color: '#fff' }}>
+                      {task.member?.initials ?? '?'}
+                    </div>
+                    <div style={{ overflow: 'hidden', minWidth: 0 }}>
+                      <div style={{ fontSize: 12, fontWeight: 500, color: '#1E293B', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{task.title}</div>
+                    </div>
+                  </div>
+
+                  <div style={{ flex: 1, position: 'relative', background: rowBg, overflow: 'hidden' }}>
+                    {days.map(({ isToday, isWeekend }, di) => (
+                      <div key={di} style={{ position: 'absolute', left: di * DAY_W, top: 0, width: DAY_W, height: '100%', background: isToday ? 'rgba(239,68,68,0.06)' : isWeekend ? 'rgba(0,0,0,0.018)' : 'transparent', borderRight: '1px solid #F1F5F9', zIndex: 0 }}/>
+                    ))}
+                    {todayOff !== null && (
+                      <div style={{ position: 'absolute', left: todayOff * DAY_W + DAY_W / 2 - 1, top: 0, width: 2, height: '100%', background: '#EF4444', opacity: 0.6, zIndex: 2 }}/>
+                    )}
+
+                    {blocked && blockerTitle && (
+                      <div title={`선행: ${blockerTitle}`} style={{
+                        position: 'absolute', left: Math.max(2, left - 96), top: '50%', transform: 'translateY(-50%)',
+                        fontSize: 9, fontWeight: 700, color: '#DC2626', background: '#FEE2E2', border: '1px solid #FECACA',
+                        borderRadius: 6, padding: '2px 6px', whiteSpace: 'nowrap', zIndex: 4, maxWidth: 92, overflow: 'hidden', textOverflow: 'ellipsis',
+                      }}>◀ 선행: {blockerTitle}</div>
+                    )}
+
+                    <button onClick={() => navigate('/sprint/1/board')} title="태스크 상세 보기" style={{
+                      position: 'absolute', left: left + 2, top: '50%', transform: 'translateY(-50%)',
+                      width: width - 4, height: 22, background: color, border: blocked ? '2px solid #DC2626' : 'none',
+                      borderRadius: 6, opacity: isDone ? 0.7 : task.status === 'todo' ? 0.65 : 1, zIndex: 3,
+                      display: 'flex', alignItems: 'center', paddingLeft: 8, paddingRight: 6, overflow: 'hidden',
+                      boxShadow: '0 1px 3px rgba(0,0,0,0.12)', cursor: 'pointer',
+                    }}>
+                      {isDone && <span style={{ fontSize: 10, color: '#fff', marginRight: 4 }}>✓</span>}
+                      {width > 56 && (
+                        <span style={{ fontSize: 10, fontWeight: 600, color: '#fff', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{task.title}</span>
+                      )}
+                    </button>
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        ))}
       </div>
 
-      {/* 범례 */}
       <div style={{ display: 'flex', gap: 14, padding: '10px 12px', borderTop: '1px solid #E8EAED', flexWrap: 'wrap', background: '#F9FAFB' }}>
-        {[['#10B981','완료'], ['#2563EB','진행 중'], ['#F59E0B','검토 중'], ['#94A3B8','예정']].map(([c, l]) => (
+        {[['#9CA3AF','완료'], ['#2563EB','진행 중'], ['#F59E0B','검토 중'], ['#CBD5E1','예정']].map(([c, l]) => (
           <div key={l} style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
             <div style={{ width: 12, height: 8, borderRadius: 2, background: c }}/>
             <span style={{ fontSize: 11, color: '#6B7280' }}>{l}</span>
           </div>
         ))}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+          <div style={{ width: 10, height: 8, borderRadius: 2, border: '2px solid #DC2626' }}/>
+          <span style={{ fontSize: 11, color: '#6B7280' }}>블로커</span>
+        </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
           <div style={{ width: 2, height: 12, background: '#EF4444', opacity: 0.6 }}/>
           <span style={{ fontSize: 11, color: '#6B7280' }}>오늘</span>
@@ -523,7 +494,6 @@ function CalendarView({ tasks, isMobile }) {
   for (let d = 1; d <= daysInMonth; d++) cells.push(d)
 
   const STATUS_DOT = { done: '#10B981', inprogress: '#2563EB', review: '#F59E0B', todo: '#9CA3AF' }
-  // 색상만으로 구분하지 않도록 상태별 모양도 다르게 — 원(진행중) / 사각(검토중) / 링(예정) / 큰 원(완료)
   const DOT_SHAPE = { done: {}, inprogress: {}, review: { square: true }, todo: { ring: true } }
 
   const selectedTasks  = tasksByDate[selectedDate] || []
@@ -543,7 +513,6 @@ function CalendarView({ tasks, isMobile }) {
       </div>
 
       <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap' }}>
-        {/* 달력 그리드 */}
         <div style={{ flex: '2 1 320px', minWidth: 280 }}>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 4, marginBottom: 4 }}>
             {['일', '월', '화', '수', '목', '금', '토'].map(d => (
@@ -607,7 +576,6 @@ function CalendarView({ tasks, isMobile }) {
           </div>
         </div>
 
-        {/* 선택한 날짜 상세 */}
         <div style={{ flex: '1 1 220px', minWidth: 220, borderLeft: isMobile ? 'none' : '1px solid #F3F4F6', paddingLeft: isMobile ? 0 : 16, borderTop: isMobile ? '1px solid #F3F4F6' : 'none', paddingTop: isMobile ? 12 : 0 }}>
           <p style={{ fontSize: 13, fontWeight: 700, color: '#111827', marginBottom: 10 }}>{selectedDate}</p>
 
@@ -662,111 +630,54 @@ function CalendarView({ tasks, isMobile }) {
 }
 
 /* ─────────────────────────────────────────────
-   PM 홈
+   PM 홈 — ① 확인 필요 → ② 궤도 → ③ AI 조언 → ④ 워크로드
 ───────────────────────────────────────────── */
-function PMHome({ currentUser, sprint, onSendNotification, teamMembers = [], updateTask, isMobile }) {
-  const [expandedMember, setExpandedMember] = useState(null)
-  const [activeTab, setActiveTab] = useState('현황')
+function PMHome({ currentUser, sprint, onSendNotification, teamMembers = [], updateTask, updateMember, getMemberStats, pushNotif, isMobile }) {
+  const navigate = useNavigate()
+  const [activeTab, setActiveTab] = useState('개요')
   const [sendModal, setSendModal] = useState(false)
   const [notifMsg, setNotifMsg] = useState('')
+  const [dismissed, setDismissed] = useState(getDismissedAdviceIds())
 
-  const tasks     = sprint.tasks
-  const done      = tasks.filter(t => t.status === 'done')
-  const inpro     = tasks.filter(t => t.status === 'inprogress')
-  const todo      = tasks.filter(t => t.status === 'todo')
-  const totalH    = tasks.reduce((s, t) => s + (t.estimatedHours || 0), 0)
-  const doneH     = done.reduce((s, t) => s + (t.estimatedHours || 0), 0)
-  const pct       = totalH > 0 ? Math.round((doneH / totalH) * 100) : 0
+  const tasks = sprint.tasks
+  const alerts = deriveAlerts(tasks)
+  const trajectory = deriveTrajectory(sprint, tasks)
+  const workload = deriveWorkload(tasks, teamMembers)
+  const daysLabel = trajectory.daysLeft > 0 ? `D-${trajectory.daysLeft}` : trajectory.daysLeft === 0 ? 'D-Day' : `D+${Math.abs(trajectory.daysLeft)}`
 
-  const parseDate = d => new Date(d.replace(/\./g, '-'))
-  const startDate = parseDate(sprint.startDate)
-  const endDate   = parseDate(sprint.endDate)
-  const today     = new Date(); today.setHours(0, 0, 0, 0)
-  const daysLeft  = Math.ceil((endDate - today) / 86400000)
-  const totalDays = Math.max(1, Math.round((endDate - startDate) / 86400000))
-  const daysLabel = daysLeft > 0 ? `D-${daysLeft}` : daysLeft === 0 ? 'D-Day' : `D+${Math.abs(daysLeft)}`
+  const advice = generatePMAdvice({ tasks, teamMembers, getMemberStats }).filter(a => !dismissed.includes(a.id))
 
-  const noAssignee  = tasks.filter(t => !t.member)
-  const today3      = new Date(today.getTime() + 3 * 86400000)
-  const overdueAll  = tasks.filter(t => t.status !== 'done' && t.dueDate && parseDate(t.dueDate) < today)
-  const dueSoon     = tasks.filter(t => t.dueDate && new Date(t.dueDate) <= today3 && new Date(t.dueDate) >= today && t.status !== 'done')
-  // 블로커: 선행 업무가 아직 완료 안 됐는데 시작하려는 태스크
-  const blockerTasks = tasks.filter(t => t.blocker && tasks.find(b => b.id === t.blocker && b.status !== 'done'))
+  function handleRemind(staleTasks) {
+    staleTasks.forEach(t => {
+      if (!t.member) return
+      pushNotif({ type: 'status', title: `업데이트 리마인드 — ${t.title}`, body: `${t.member.name}님, "${t.title}" 진행 상황을 업데이트해주세요. 48시간 넘게 변경이 없어요.` })
+    })
+  }
 
-  const memberH = {}
-  tasks.filter(t => t.status !== 'done').forEach(t => {
-    if (!t.member) return
-    memberH[t.member.name] = (memberH[t.member.name] || 0) + (t.estimatedHours || 0)
-  })
-  const overloaded = Object.entries(memberH).filter(([, h]) => h > 40).map(([n]) => n)
-
-  const alerts = [
-    overdueAll.length > 0 && {
-      level: 'danger', type: 'overdue',
-      label: `일정 초과 ${overdueAll.length}개 — 마감일이 지났어요`,
-      desc: overdueAll.slice(0, 2).map(t => `${t.title}${t.member ? ` (${t.member.name})` : ''}`).join(', '),
-    },
-    noAssignee.length > 0 && {
-      level: 'warn', type: 'unassigned',
-      label: `미배정 업무 ${noAssignee.length}개`,
-      desc: noAssignee.slice(0, 2).map(t => t.title).join(', ') + (noAssignee.length > 2 ? ' 외' : ''),
-    },
-    blockerTasks.length > 0 && {
-      level: 'danger', type: 'blocker',
-      label: `블로커 ${blockerTasks.length}개 — 선행 업무 대기 중`,
-      desc: blockerTasks.slice(0, 2).map(t => t.title).join(' · '),
-    },
-    dueSoon.length > 0 && {
-      level: daysLeft <= 0 ? 'danger' : 'warn', type: 'deadline',
-      label: `마감 임박 미완료 ${dueSoon.length}개`,
-      desc: dueSoon.slice(0, 2).map(t => t.title).join(', '),
-    },
-    overloaded.length > 0 && {
-      level: 'warn', type: 'warn',
-      label: `과부하 팀원 ${overloaded.length}명`,
-      desc: `${overloaded.join(', ')} — 남은 배정 시간이 40시간을 넘어요`,
-    },
-    todo.length > inpro.length * 2 && todo.length > 3 && {
-      level: 'info', type: 'backlog',
-      label: `대기 중 태스크 ${todo.length}개 — 착수를 서두르세요`,
-      desc: `진행 중(${inpro.length}개)보다 대기 중 업무가 훨씬 많아요`,
-    },
-  ].filter(Boolean)
-
-  // 팀원별 워크로드
-  const memberMap = {}
-  tasks.forEach(t => {
-    if (!t.member) return
-    const k = t.member.name
-    if (!memberMap[k]) memberMap[k] = { member: t.member, tasks: [] }
-    memberMap[k].tasks.push(t)
-  })
-  const workload = Object.values(memberMap).map(({ member, tasks: mt }) => {
-    const doneCnt  = mt.filter(t => t.status === 'done').length
-    const overdue  = mt.filter(t => t.status !== 'done' && t.dueDate && parseDate(t.dueDate) < today)
-    return {
-      member,
-      tasks: mt,
-      remainH: mt.filter(t => t.status !== 'done').reduce((s, t) => s + (t.estimatedHours || 0), 0),
-      doneH:   mt.filter(t => t.status === 'done').reduce((s, t) => s + (t.estimatedHours || 0), 0),
-      total:   mt.reduce((s, t) => s + (t.estimatedHours || 0), 0),
-      doneCnt,
-      efficiency: mt.length > 0 ? Math.round((doneCnt / mt.length) * 100) : 0,
-      overdue,
+  function handleApplyAdvice(a) {
+    if (!window.confirm(`${a.message}\n\n이 제안을 적용할까요?`)) return
+    if (a.type === 'reassign') {
+      const target = teamMembers.find(m => m.name === a.action.toMemberName)
+      if (target) updateTask(a.action.taskId, { member: { id: target.id, name: target.name, color: target.color, initials: target.initials } })
+    } else if (a.type === 'capacity') {
+      const cur = teamMembers.find(m => m.id === a.action.memberId)
+      if (cur) {
+        const adjusted = Math.max(0, Math.round(cur.capacity * (1 - a.action.suggestedRate / 100) / 4) * 4)
+        updateMember(a.action.memberId, { capacity: adjusted })
+      }
     }
-  }).sort((a, b) => b.overdue.length - a.overdue.length || b.remainH - a.remainH)
+    dismissAdvice(a.id)
+    setDismissed(getDismissedAdviceIds())
+  }
 
-  const STATUS_STYLE = {
-    done:       { bg: '#D1FAE5', color: '#059669', label: '완료' },
-    inprogress: { bg: '#EFF6FF', color: '#2563EB', label: '진행 중' },
-    review:     { bg: '#FEF3C7', color: '#D97706', label: '검토 중' },
-    todo:       { bg: '#F3F4F6', color: '#6B7280', label: '예정' },
+  function handleDismissAdvice(id) {
+    dismissAdvice(id)
+    setDismissed(getDismissedAdviceIds())
   }
 
   return (
-    <div style={{ flex: 1, overflowY: 'auto', background: '#F4F5F7', padding: isMobile ? '14px 16px' : '20px 24px', display: 'flex', flexDirection: 'column', gap: 16 }}>
+    <div style={{ flex: 1, overflowY: 'auto', background: '#F4F5F7', padding: isMobile ? '14px 16px' : '18px 24px', display: 'flex', flexDirection: 'column', gap: 14 }}>
 
-      {/* 알림 발송 모달 */}
       {sendModal && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(17,24,39,0.45)', zIndex: 300, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
           onClick={e => { if (e.target === e.currentTarget) setSendModal(false) }}>
@@ -778,8 +689,8 @@ function PMHome({ currentUser, sprint, onSendNotification, teamMembers = [], upd
             <div style={{ padding: '12px 14px', borderRadius: 12, background: '#F4F5F7', border: '1px solid #E8EAED' }}>
               <p style={{ fontSize: 11, fontWeight: 600, color: '#6B7280', marginBottom: 6 }}>이번 계획 현황 자동 요약</p>
               <p style={{ fontSize: 12, color: '#374151', lineHeight: '18px' }}>
-                📊 {sprint.name} 현황: 완료 {tasks.filter(t=>t.status==='done').length}/{tasks.length}개 ({pct}%) · 남은 기간 {daysLeft}일
-                {blockerTasks.length > 0 ? ` · 블로커 ${blockerTasks.length}건` : ''}
+                📊 {sprint.name} 현황: 완료 {trajectory.doneCount}/{trajectory.totalCount}개 ({trajectory.pct}%) · 남은 기간 {trajectory.daysLeft}일
+                {alerts.blockers.length > 0 ? ` · 블로커 ${alerts.blockers.length}건` : ''}
               </p>
             </div>
             <div>
@@ -795,7 +706,7 @@ function PMHome({ currentUser, sprint, onSendNotification, teamMembers = [], upd
             <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
               <button onClick={() => setSendModal(false)} style={{ padding: '0 18px', height: 38, borderRadius: 10, border: '1px solid #E8EAED', background: '#F4F5F7', fontSize: 13, fontWeight: 600, color: '#374151', cursor: 'pointer' }}>취소</button>
               <button onClick={() => {
-                const summary = `📊 ${sprint.name} 현황: 완료 ${tasks.filter(t=>t.status==='done').length}/${tasks.length}개 (${pct}%) · 남은 ${daysLeft}일${blockerTasks.length > 0 ? ` · 블로커 ${blockerTasks.length}건` : ''}`
+                const summary = `📊 ${sprint.name} 현황: 완료 ${trajectory.doneCount}/${trajectory.totalCount}개 (${trajectory.pct}%) · 남은 ${trajectory.daysLeft}일${alerts.blockers.length > 0 ? ` · 블로커 ${alerts.blockers.length}건` : ''}`
                 onSendNotification(summary, notifMsg)
                 setNotifMsg('')
                 setSendModal(false)
@@ -807,10 +718,9 @@ function PMHome({ currentUser, sprint, onSendNotification, teamMembers = [], upd
         </div>
       )}
 
-      {/* 탭 + 알림 버튼 */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8 }}>
         <div style={{ display: 'flex', gap: 4, background: '#E8EAED', borderRadius: 10, padding: 3 }}>
-          {['현황', '간트', '달력'].map(tab => (
+          {['개요', '간트차트', '달력'].map(tab => (
             <button key={tab} onClick={() => setActiveTab(tab)} style={{
               padding: '6px 18px', borderRadius: 8, border: 'none', fontSize: 13, fontWeight: 600, cursor: 'pointer',
               background: activeTab === tab ? '#fff' : 'transparent',
@@ -826,450 +736,209 @@ function PMHome({ currentUser, sprint, onSendNotification, teamMembers = [], upd
         }}>📢 {isMobile ? '알림 보내기' : '팀에게 알림 보내기'}</button>
       </div>
 
-      {/* 간트 뷰 */}
-      {activeTab === '간트' && (
+      {activeTab === '간트차트' && (
         <div style={{ ...card, padding: '16px 20px' }}>
           <p style={{ fontSize: 13, fontWeight: 700, color: '#111827', marginBottom: 14 }}>전체 태스크 간트 뷰</p>
-          <GanttChart tasks={tasks} startDate={sprint.startDate} endDate={sprint.endDate} />
+          {tasks.length === 0
+            ? <p style={{ fontSize: 13, color: '#9CA3AF' }}>아직 태스크가 없어요. 이번 계획 만들기에서 태스크를 배정해보세요.</p>
+            : <GanttChart tasks={tasks} startDate={sprint.startDate} endDate={sprint.endDate} teamMembers={teamMembers} navigate={navigate} />
+          }
         </div>
       )}
 
-      {/* 달력 뷰 */}
       {activeTab === '달력' && <CalendarView tasks={tasks} isMobile={isMobile} />}
 
-      {activeTab === '현황' && <>
+      {activeTab === '개요' && <>
+        {/* ① 지금 확인이 필요한 항목 */}
+        <AlertSummaryRow alerts={alerts} isMobile={isMobile} onRemind={handleRemind} navigate={navigate} />
 
-      {/* 핵심 지표 — 완료율 도넛 + 보조 지표 3개 */}
-      <div style={{ ...card, padding: isMobile ? '16px' : '18px 22px', display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: isMobile ? 16 : 26 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 14, flexShrink: 0 }}>
-          <DonutRing pct={pct} color={pct >= 70 ? '#10B981' : '#2563EB'} />
-          <div>
-            <p style={{ fontSize: 12, color: '#9CA3AF' }}>{done.length}/{tasks.length}개 완료</p>
-            <p style={{ fontSize: 12, color: '#9CA3AF', marginTop: 2 }}>{sprint.name}</p>
-          </div>
+        {/* ② 스프린트 궤도 */}
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12 }}>
+          <TrajectoryCard trajectory={trajectory} sprint={sprint} tasks={tasks} />
+          <DonutCard trajectory={trajectory} daysLabel={daysLabel} />
         </div>
 
-        <div style={{ width: isMobile ? '100%' : 1, height: isMobile ? 1 : 64, background: '#E8EAED', flexShrink: 0, display: isMobile ? 'block' : 'block' }} />
+        {/* ③ AI 조언 */}
+        <AIAdviceCard items={advice} onApply={handleApplyAdvice} onDismiss={handleDismissAdvice} />
 
-        <div style={{ flex: '1 1 260px', minWidth: 220, display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: isMobile ? 8 : 16 }}>
-          {[
-            { icon: '⚡', label: '진행 중', value: inpro.length, unit: '개', sub: `예정 ${todo.length}개 대기`, color: inpro.length > 0 ? '#2563EB' : '#9CA3AF' },
-            { icon: '📅', label: '남은 기간', value: daysLeft > 0 ? daysLeft : daysLeft === 0 ? 'D-Day' : '종료', unit: daysLeft > 0 ? '일' : '', sub: sprint.endDate, color: daysLeft <= 3 ? '#EF4444' : '#111827' },
-            { icon: alerts.length > 0 ? '⚠️' : '✅', label: '확인 필요', value: alerts.length, unit: '건', sub: alerts.length > 0 ? '아래에서 확인' : '이상 없음', color: alerts.length > 0 ? '#D97706' : '#10B981' },
-          ].map(({ icon, label, value, unit, sub, color }) => (
-            <div key={label} style={{ minWidth: 0 }}>
-              <p style={{ fontSize: 11, fontWeight: 700, color: '#9CA3AF', marginBottom: 4, display: 'flex', alignItems: 'center', gap: 4, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                <span style={{ fontSize: 12, flexShrink: 0 }}>{icon}</span><span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>{label}</span>
-              </p>
-              <p style={{ fontSize: isMobile ? 18 : 21, fontWeight: 800, color, lineHeight: 1.2 }}>
-                {value}<span style={{ fontSize: 12, fontWeight: 500, color: '#9CA3AF', marginLeft: 2 }}>{unit}</span>
-              </p>
-              <p style={{ fontSize: 11, color: '#9CA3AF', marginTop: 3, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{sub}</p>
-            </div>
-          ))}
-        </div>
-      </div>
-
-      {/* AI 인사이트 */}
-      {tasks.length > 0 && (
-        <AIInsightCard text={buildProjectInsight({
-          pct, daysLeft, totalDays,
-          overdueCount: overdueAll.length,
-          blockerCount: blockerTasks.length,
-          unassignedCount: noAssignee.length,
-          topOverloaded: overloaded[0],
-        })} />
-      )}
-
-      {/* 태스크 상태 분포 */}
-      <div style={{ ...card, padding: '16px 20px' }}>
-        <SectionTitle>태스크 상태 분포</SectionTitle>
-        <StatusDistBar tasks={tasks} />
-      </div>
-
-      {/* 팀원별 현황 + 번다운 차트 — 1:1 */}
-      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 16 }}>
-
-        {/* 팀원별 워크로드 + 태스크 목록 */}
-        <div style={{ ...card, padding: '16px 20px', flex: '1 1 380px', minWidth: 0 }}>
-          <SectionTitle>팀원별 현황</SectionTitle>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-            {workload.map(({ member, tasks: mt, remainH, doneH: dH, doneCnt, efficiency, overdue }) => {
-              const cap = teamMembers.find(m => m.name === member.name)?.capacity ?? 80
-              const over = remainH > cap
-              const isExpanded = expandedMember === member.name
-              return (
-                <div key={member.name} style={{ borderRadius: 10, overflow: 'hidden', border: '1px solid #F3F4F6', marginBottom: 4 }}>
-                  {/* 헤더 — 클릭으로 펼치기 */}
-                  <div onClick={() => setExpandedMember(isExpanded ? null : member.name)}
-                    style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px', cursor: 'pointer', background: isExpanded ? '#F9FAFB' : '#fff', userSelect: 'none' }}>
-                    <Avatar initials={member.initials} color={member.color} size={28} fontSize={11} />
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4, flexWrap: 'wrap' }}>
-                        <span style={{ fontSize: 13, fontWeight: 600, color: '#111827' }}>{member.name}</span>
-                        {over && <span style={{ fontSize: 10, fontWeight: 700, color: '#DC2626', background: '#FEE2E2', border: '1px solid #FECACA', padding: '1px 6px', borderRadius: 9999 }}>과부하</span>}
-                        {overdue.length > 0 && (
-                          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3, fontSize: 10, fontWeight: 700, color: '#B91C1C', background: '#FEF2F2', border: '1px solid #FECACA', padding: '1px 6px', borderRadius: 9999 }}>
-                            <StatusIcon type="overdue" size={10} /> 일정 초과 {overdue.length}건
-                          </span>
-                        )}
-                        <span style={{ fontSize: 11, color: '#9CA3AF', marginLeft: 2 }}>{doneCnt}/{mt.length}개 완료</span>
-                        <span style={{ fontSize: 11, fontWeight: 700, color: efficiency >= 70 ? '#10B981' : efficiency >= 40 ? '#D97706' : '#9CA3AF' }}>· 효율 {efficiency}%</span>
-                      </div>
-                      <div style={{ height: 5, background: '#F3F4F6', borderRadius: 3, overflow: 'hidden', display: 'flex' }}>
-                        <div style={{ height: '100%', width: `${Math.min(100, Math.round((dH / cap) * 100))}%`, background: '#10B981' }} />
-                        <div style={{ height: '100%', width: `${Math.min(100 - Math.min(100, Math.round((dH / cap) * 100)), Math.round((remainH / cap) * 100))}%`, background: over ? '#EF4444' : member.color }} />
-                      </div>
-                    </div>
-                    <div style={{ textAlign: 'right', flexShrink: 0 }}>
-                      <div style={{ fontSize: 12, color: '#10B981', fontWeight: 600 }}>{dH}h 완료</div>
-                      {remainH > 0 && <div style={{ fontSize: 11, color: '#9CA3AF' }}>잔여 {remainH}h</div>}
-                    </div>
-                    <span style={{ fontSize: 12, color: '#9CA3AF', flexShrink: 0 }}>{isExpanded ? '▲' : '▼'}</span>
-                  </div>
-
-                  {/* 펼쳐진 태스크 목록 */}
-                  {isExpanded && (
-                    <div style={{ borderTop: '1px solid #F3F4F6', padding: '8px 12px', display: 'flex', flexDirection: 'column', gap: 4, background: '#FAFAFA' }}>
-                      {mt.map(t => {
-                        const ss = STATUS_STYLE[t.status] || STATUS_STYLE.todo
-                        const isOverdue = t.status !== 'done' && t.dueDate && parseDate(t.dueDate) < today
-                        return (
-                          <div key={t.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '7px 10px', borderRadius: 8, background: '#fff', border: `1px solid ${isOverdue ? '#FECACA' : '#F3F4F6'}` }}>
-                            <span style={{ fontSize: 11, fontWeight: 700, padding: '2px 8px', borderRadius: 9999, background: ss.bg, color: ss.color, flexShrink: 0 }}>
-                              {ss.label}
-                            </span>
-                            <span style={{ fontSize: 13, color: '#111827', flex: 1 }}>{t.title}</span>
-                            {t.estimatedHours > 0 && <span style={{ fontSize: 11, color: '#9CA3AF', flexShrink: 0 }}>{t.estimatedHours}h</span>}
-                            {t.dueDate && <span style={{ fontSize: 11, color: isOverdue ? '#DC2626' : '#9CA3AF', fontWeight: isOverdue ? 700 : 400, flexShrink: 0 }}>~{t.dueDate}</span>}
-                            {isOverdue && (
-                              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3, fontSize: 10, color: '#DC2626', background: '#FEE2E2', padding: '1px 6px', borderRadius: 9999, flexShrink: 0 }}>
-                                <StatusIcon type="overdue" size={10} /> 초과
-                              </span>
-                            )}
-                            {t.blocker && <span style={{ fontSize: 10, color: '#DC2626', background: '#FEE2E2', padding: '1px 6px', borderRadius: 9999, flexShrink: 0 }}>블로커</span>}
-                          </div>
-                        )
-                      })}
-                    </div>
-                  )}
-                </div>
-              )
-            })}
-            {noAssignee.length > 0 && (
-              <div style={{ padding: '10px 12px', borderRadius: 10, background: '#FFFBEB', border: '1px solid #FDE68A', marginTop: 4 }}>
-                <p style={{ fontSize: 12, fontWeight: 600, color: '#D97706', marginBottom: 8 }}>👤 미배정 태스크 {noAssignee.length}개</p>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                  {noAssignee.map(t => {
-                    const suggested = suggestMembers(t.title, teamMembers)
-                    return (
-                      <div key={t.id} style={{ display: 'flex', alignItems: 'center', gap: 8, background: '#fff', borderRadius: 8, padding: '7px 10px', border: '1px solid #FDE68A' }}>
-                        <span style={{ fontSize: 12, color: '#374151', flex: 1 }}>{t.title}</span>
-                        {suggested.length > 0 && (
-                          <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
-                            <span style={{ fontSize: 10, color: '#9CA3AF', fontWeight: 600 }}>AI 추천</span>
-                            {suggested.map(m => (
-                              <button key={m.id} title={`${m.name} (${m.role}) 배정`}
-                                onClick={() => updateTask(t.id, { member: { name: m.name, color: m.color, initials: m.initials || m.name[0] } })}
-                                style={{ width: 26, height: 26, borderRadius: '50%', background: m.color, color: '#fff', border: '2px solid #fff', boxShadow: '0 0 0 1.5px ' + m.color, fontSize: 10, fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                                {m.initials || m.name[0]}
-                              </button>
-                            ))}
-                          </div>
-                        )}
-                      </div>
-                    )
-                  })}
-                </div>
-              </div>
-            )}
-          </div>
-        </div>
-
-        {/* 번다운 차트 */}
-        <div style={{ ...card, padding: '16px 20px', flex: '1 1 380px', minWidth: 0 }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
-            <SectionTitle>번다운 차트</SectionTitle>
-            <a href="/sprint/1/board" style={{ fontSize: 12, fontWeight: 600, color: '#2563EB', textDecoration: 'none' }}>
-              진행 현황판 →
-            </a>
-          </div>
-          <BurndownChart tasks={tasks} startDate={sprint.startDate} endDate={sprint.endDate} />
-          <div style={{ display: 'flex', gap: 16, marginTop: 8, flexWrap: 'wrap' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
-              <svg width="20" height="4"><line x1="0" y1="2" x2="20" y2="2" stroke="#D1D5DB" strokeWidth="1.5" strokeDasharray="4,2"/></svg>
-              <span style={{ fontSize: 11, color: '#9CA3AF' }}>이상적 속도</span>
-            </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
-              <svg width="20" height="4"><line x1="0" y1="2" x2="20" y2="2" stroke="#2563EB" strokeWidth="2"/></svg>
-              <span style={{ fontSize: 11, color: '#9CA3AF' }}>실제 진행</span>
-            </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
-              <svg width="20" height="4"><line x1="0" y1="2" x2="20" y2="2" stroke="#2563EB" strokeWidth="1.5" strokeDasharray="3,2" opacity="0.4"/></svg>
-              <span style={{ fontSize: 11, color: '#9CA3AF' }}>예상 추세</span>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* 확인 필요 항목 */}
-      {alerts.length > 0 ? (
-        <div style={{ ...card, padding: '16px 20px' }}>
-          <SectionTitle count={alerts.length} countColor={alerts.some(a => a.level === 'danger') ? 'red' : 'yellow'}>
-            확인이 필요한 항목
-          </SectionTitle>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-            {alerts.map((a, i) => <AlertCard key={i} {...a} />)}
-          </div>
-        </div>
-      ) : (
-        <div style={{ ...card, padding: '14px 20px', display: 'flex', alignItems: 'center', gap: 12 }}>
-          <span style={{ fontSize: 18 }}>✅</span>
-          <p style={{ fontSize: 13, fontWeight: 600, color: '#059669' }}>확인이 필요한 항목이 없어요. 팀이 순조롭게 진행 중이에요.</p>
-        </div>
-      )}
-
-      </> }
+        {/* ④ 팀원별 워크로드 */}
+        <WorkloadTable workload={workload} />
+      </>}
     </div>
   )
 }
 
 /* ─────────────────────────────────────────────
-   팀원 홈
+   팀원 홈 — ① 지금 진행 중 → ② 다음 할 일 → ③ 마감+팀맥락 → AI 조언 → 알림
 ───────────────────────────────────────────── */
-function MemberHome({ currentUser, sprint, moveTask, isMobile, onRequestReview }) {
-  const tasks      = sprint.tasks
-  const myTasks    = tasks.filter(t => t.member?.name === currentUser.name)
-  const myNow      = myTasks.filter(t => t.status === 'inprogress')
-  const myNext     = myTasks.filter(t => t.status === 'todo' && !t.blocker)
-  const myReview   = myTasks.filter(t => t.status === 'review')
-  const iWait      = myTasks.filter(t => t.blocker && tasks.find(b => b.id === t.blocker && b.status !== 'done'))
-  // 내 업무가 끝나야 착수 가능한 다른 태스크
-  const waitingOnMe = tasks.filter(t =>
-    t.blocker && myTasks.find(m => m.id === t.blocker && m.status !== 'done')
-  )
+function MemberHome({ currentUser, sprint, moveTask, updateTask, updateNote, isMobile, onRequestReview }) {
+  const { notifications } = useNotificationStore()
+  const [dismissed, setDismissed] = useState(getDismissedAdviceIds())
+  const tasks = sprint.tasks
 
-  const today    = new Date(); today.setHours(0, 0, 0, 0)
-  const week3    = new Date(today.getTime() + 3 * 86400000)
-  const dueSoon  = myTasks.filter(t => t.dueDate && new Date(t.dueDate) <= week3 && t.status !== 'done')
+  const { now: nowTask } = deriveMemberNow(tasks, currentUser)
+  const { next: nextTask, isReady, blockerTitle, preview } = deriveMemberNext(tasks, currentUser)
+  const myDeadlines = deriveMyDeadlines(tasks, currentUser)
+  const teamContext = deriveTeamContext(tasks, currentUser, sprint)
+  const advice = generateMemberAdvice({ tasks, currentUser }).filter(a => !dismissed.includes(a.id))
 
-  const done     = myTasks.filter(t => t.status === 'done')
-  const totalH   = myTasks.reduce((s, t) => s + (t.estimatedHours || 0), 0)
-  const doneH    = done.reduce((s, t) => s + (t.estimatedHours || 0), 0)
-  const myPct    = totalH > 0 ? Math.round((doneH / totalH) * 100) : 0
+  function handleApplyAdvice(a) {
+    if (!window.confirm(`${a.message}\n\n적용할까요?`)) return
+    if (a.type === 'ready') moveTask(a.action.taskId, 'inprogress')
+    dismissAdvice(a.id)
+    setDismissed(getDismissedAdviceIds())
+  }
+  function handleDismissAdvice(id) {
+    dismissAdvice(id)
+    setDismissed(getDismissedAdviceIds())
+  }
 
-  // 팀 전체 진행률
-  const allDoneH   = tasks.filter(t => t.status === 'done').reduce((s, t) => s + (t.estimatedHours || 0), 0)
-  const allTotalH  = tasks.reduce((s, t) => s + (t.estimatedHours || 0), 0)
-  const teamPct    = allTotalH > 0 ? Math.round((allDoneH / allTotalH) * 100) : 0
-  const parseDate  = d => new Date(d.replace(/\./g, '-'))
-  const daysLeft   = Math.ceil((parseDate(sprint.endDate) - today) / 86400000)
+  function handleRegisterOutput(task) {
+    const url = window.prompt('산출물 링크(URL)를 입력해주세요', task.outputLink || '')
+    if (url !== null) updateTask(task.id, { outputLink: url })
+  }
+  function handleReportBlocked(task) {
+    onRequestReview?.(task, true)
+  }
 
-  function TaskCard({ task }) {
-    const isBlocked = !!task.blocker && tasks.find(b => b.id === task.blocker && b.status !== 'done')
-    const blocker   = isBlocked ? tasks.find(b => b.id === task.blocker) : null
-    return (
-      <div style={{
-        padding: '12px 14px', borderRadius: 12,
-        border: `1px solid ${isBlocked ? '#FECACA' : '#E8EAED'}`,
-        background: isBlocked ? '#FFF5F5' : '#fff',
-        display: 'flex', flexDirection: 'column', gap: 8,
-      }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          {isBlocked && <span style={{ fontSize: 10, fontWeight: 700, color: '#DC2626', background: '#FEE2E2', border: '1px solid #FECACA', padding: '1px 6px', borderRadius: 9999, flexShrink: 0 }}>블로커</span>}
-          <span style={{ fontSize: 13, fontWeight: 600, color: '#111827', flex: 1 }}>{task.title}</span>
-          {task.estimatedHours > 0 && <span style={{ fontSize: 11, color: '#9CA3AF', flexShrink: 0 }}>{task.estimatedHours}h</span>}
-        </div>
-        {blocker && (
-          <p style={{ fontSize: 11, color: '#DC2626', margin: 0 }}>
-            ⏳ {blocker.title} ({blocker.member?.name}) 완료 후 시작 가능
-          </p>
-        )}
-        {task.dueDate && (
-          <p style={{ fontSize: 11, color: new Date(task.dueDate) <= week3 ? '#D97706' : '#9CA3AF', margin: 0 }}>
-            📅 마감 {task.dueDate}
-          </p>
-        )}
-        <div style={{ display: 'flex', gap: 6 }}>
-          {task.status === 'todo' && !isBlocked && (
-            <button onClick={() => moveTask(task.id, 'inprogress')}
-              style={{ padding: '5px 12px', fontSize: 11, fontWeight: 600, borderRadius: 8, border: '1px solid #BFDBFE', background: '#EFF6FF', color: '#2563EB', cursor: 'pointer' }}>
-              시작하기
-            </button>
-          )}
-          {task.status === 'inprogress' && (<>
-            <button onClick={() => { moveTask(task.id, 'review'); onRequestReview?.(task) }}
-              title="PM에게 검토를 요청해요. PM이 승인하면 완료로, 반려하면 다시 진행 중으로 돌아가요"
-              style={{ padding: '5px 12px', fontSize: 11, fontWeight: 600, borderRadius: 8, border: '1px solid #A7F3D0', background: '#D1FAE5', color: '#059669', cursor: 'pointer' }}>
-              검토 요청
-            </button>
-            <button onClick={() => moveTask(task.id, 'done')}
-              title="검토 없이 바로 완료 처리해요"
-              style={{ padding: '5px 12px', fontSize: 11, fontWeight: 600, borderRadius: 8, border: '1px solid #BBF7D0', background: '#F0FDF4', color: '#16A34A', cursor: 'pointer' }}>
-              완료
-            </button>
-          </>)}
-          {task.status === 'review' && (
-            <span style={{ fontSize: 11, color: '#D97706', padding: '5px 0' }} title="PM이 진행 현황판에서 승인하면 완료로 바뀌어요">PM 검토 중... ⓘ</span>
-          )}
-        </div>
-      </div>
-    )
+  const dueChip = t => {
+    if (!t.dueDate) return null
+    const days = Math.ceil((new Date(t.dueDate) - new Date()) / 86400000)
+    const label = days > 0 ? `D-${days}` : days === 0 ? 'D-Day' : `D+${Math.abs(days)}`
+    return { label, danger: days <= 1 }
   }
 
   return (
-    <div style={{ flex: 1, overflowY: 'auto', background: '#F4F5F7', padding: isMobile ? '14px 16px' : '20px 24px', display: 'flex', flexDirection: 'column', gap: 16 }}>
+    <div style={{ flex: 1, overflowY: 'auto', background: '#F4F5F7', padding: isMobile ? '14px 16px' : '18px 24px', display: 'flex', flexDirection: 'column', gap: 14 }}>
 
-      {/* 새 스프린트 알림 */}
-      {sprint.startedAt && (() => {
-        const hoursAgo = (Date.now() - new Date(sprint.startedAt).getTime()) / 3600000
-        if (hoursAgo > 48 || myTasks.filter(t => t.status !== 'done').length === 0) return null
-        return (
-          <div style={{ padding: '14px 18px', borderRadius: 14, background: '#EFF6FF', border: '1px solid #BFDBFE', display: 'flex', gap: 14 }}>
-            <span style={{ fontSize: 20, flexShrink: 0 }}>🎉</span>
+      {/* ① 지금 진행 중 */}
+      <div style={{ ...card, padding: '18px 20px' }}>
+        <SectionTitle>지금 진행 중</SectionTitle>
+        {!nowTask ? (
+          <p style={{ fontSize: 13, color: '#9CA3AF' }}>진행 중인 업무가 없어요. 아래 다음 할 일에서 시작해보세요.</p>
+        ) : (() => {
+          const chip = dueChip(nowTask)
+          return (
             <div>
-              <p style={{ fontSize: 13, fontWeight: 700, color: '#1D4ED8', marginBottom: 4 }}>새 계획이 시작됐어요!</p>
-              <p style={{ fontSize: 12, color: '#3B82F6' }}>
-                {currentUser.name}님 배정 {myTasks.filter(t => t.status !== 'done').length}개 — {myTasks.filter(t => t.status !== 'done').slice(0, 2).map(t => t.title).join(', ')}
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8, flexWrap: 'wrap' }}>
+                <p style={{ fontSize: 16, fontWeight: 700, color: '#111827', flex: 1 }}>{nowTask.title}</p>
+                {chip && (
+                  <span style={{ fontSize: 11, fontWeight: 800, padding: '2px 9px', borderRadius: 9999, background: chip.danger ? '#FEE2E2' : '#EFF6FF', color: chip.danger ? '#DC2626' : '#2563EB' }}>{chip.label}</span>
+                )}
+              </div>
+              <p style={{ fontSize: 12, color: '#9CA3AF', marginBottom: 12 }}>
+                예상 {nowTask.estimatedHours || 0}h{nowTask.note ? ` · ${nowTask.note}` : ''}
               </p>
+              <div style={{ marginBottom: 12 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
+                  <span style={{ fontSize: 11, color: '#9CA3AF' }}>진행률</span>
+                  <span style={{ fontSize: 11, color: '#9CA3AF' }}>{nowTask.progress || 0}%</span>
+                </div>
+                <div style={{ height: 6, background: '#F3F4F6', borderRadius: 3, overflow: 'hidden' }}>
+                  <div style={{ height: '100%', width: `${nowTask.progress || 0}%`, background: currentUser.color || '#2563EB', borderRadius: 3 }} />
+                </div>
+              </div>
+              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                <button onClick={() => handleRegisterOutput(nowTask)} style={{ padding: '6px 14px', fontSize: 12, fontWeight: 600, borderRadius: 8, border: '1px solid #BFDBFE', background: '#EFF6FF', color: '#2563EB', cursor: 'pointer' }}>산출물 링크 등록</button>
+                <button onClick={() => handleReportBlocked(nowTask)} style={{ padding: '6px 14px', fontSize: 12, fontWeight: 600, borderRadius: 8, border: '1px solid #FECACA', background: '#FFF5F5', color: '#DC2626', cursor: 'pointer' }}>막힘 알리기</button>
+                <button onClick={() => { moveTask(nowTask.id, 'review'); onRequestReview?.(nowTask) }} style={{ padding: '6px 14px', fontSize: 12, fontWeight: 600, borderRadius: 8, border: '1px solid #A7F3D0', background: '#D1FAE5', color: '#059669', cursor: 'pointer' }}>검토 요청</button>
+              </div>
             </div>
-          </div>
-        )
-      })()}
+          )
+        })()}
+      </div>
 
-      {/* 내 요약 카드 */}
-      <div style={{ ...card, padding: '18px 22px' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginBottom: 16 }}>
-          <Avatar initials={currentUser.initials} color={currentUser.color} size={44} fontSize={17} />
-          <div style={{ flex: 1 }}>
-            <p style={{ fontSize: 15, fontWeight: 700, color: '#111827' }}>{currentUser.name}님, 안녕하세요</p>
-            <p style={{ fontSize: 12, color: '#9CA3AF' }}>{currentUser.role} · {sprint.name}</p>
+      {/* ② 다음 할 일 */}
+      <div style={{ ...card, padding: '16px 20px' }}>
+        <SectionTitle>다음 할 일</SectionTitle>
+        {!nextTask ? (
+          <p style={{ fontSize: 13, color: '#9CA3AF' }}>준비된 업무가 없어요.</p>
+        ) : (
+          <div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+              <p style={{ fontSize: 14, fontWeight: 600, color: '#111827', flex: 1 }}>{nextTask.title}</p>
+              {nextTask.estimatedHours > 0 && <span style={{ fontSize: 11, color: '#9CA3AF' }}>{nextTask.estimatedHours}h</span>}
+            </div>
+            <div style={{ marginBottom: 10 }}>
+              {isReady ? (
+                <span style={{ fontSize: 11, fontWeight: 700, color: '#059669', background: '#D1FAE5', padding: '2px 9px', borderRadius: 9999 }}>선행 업무 완료 — 바로 시작 가능</span>
+              ) : (
+                <span style={{ fontSize: 11, fontWeight: 700, color: '#6B7280', background: '#F3F4F6', padding: '2px 9px', borderRadius: 9999 }}>선행 대기 중: {blockerTitle || '확인 필요'}</span>
+              )}
+            </div>
+            {isReady && (
+              <button onClick={() => moveTask(nextTask.id, 'inprogress')} style={{ padding: '6px 14px', fontSize: 12, fontWeight: 600, borderRadius: 8, border: '1px solid #BFDBFE', background: '#EFF6FF', color: '#2563EB', cursor: 'pointer' }}>시작하기</button>
+            )}
+            {preview && (
+              <p style={{ fontSize: 11, color: '#C4C9D1', marginTop: 10 }}>다음: {preview.title}</p>
+            )}
           </div>
-          <div style={{ display: 'flex', gap: 20 }}>
-            {[
-              { label: '내 배정', value: myTasks.length, unit: '개' },
-              { label: '내 완료율', value: myPct, unit: '%', color: myPct >= 50 ? '#10B981' : '#F59E0B' },
-            ].map(({ label, value, unit, color }) => (
-              <div key={label} style={{ textAlign: 'center' }}>
-                <p style={{ fontSize: 11, color: '#9CA3AF', marginBottom: 4 }}>{label}</p>
-                <p style={{ fontSize: 22, fontWeight: 800, color: color || '#111827', lineHeight: 1 }}>
-                  {value}<span style={{ fontSize: 12, fontWeight: 500, color: '#9CA3AF' }}>{unit}</span>
-                </p>
+        )}
+      </div>
+
+      {/* ③ 내 마감 일정 + 팀 맥락 */}
+      <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 12 }}>
+        <div style={{ ...card, padding: '16px 20px' }}>
+          <SectionTitle>내 마감 일정</SectionTitle>
+          {myDeadlines.length === 0 ? (
+            <p style={{ fontSize: 13, color: '#9CA3AF' }}>다가오는 마감이 없어요.</p>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+              {myDeadlines.map(t => {
+                const chip = dueChip(t)
+                return (
+                  <div key={t.id} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '7px 10px', borderRadius: 8, background: '#F9FAFB' }}>
+                    <span style={{ fontSize: 12, color: '#374151', flex: 1 }}>{t.title}</span>
+                    <span style={{ fontSize: 11, color: '#9CA3AF' }}>{t.dueDate}</span>
+                    {chip && <span style={{ fontSize: 10, fontWeight: 800, padding: '1px 7px', borderRadius: 9999, background: chip.danger ? '#FEE2E2' : '#EFF6FF', color: chip.danger ? '#DC2626' : '#2563EB' }}>{chip.label}</span>}
+                  </div>
+                )
+              })}
+            </div>
+          )}
+        </div>
+
+        <div style={{ ...card, padding: '16px 20px' }}>
+          <SectionTitle>팀 맥락</SectionTitle>
+          <p style={{ fontSize: 12, color: '#374151', marginBottom: 8 }}>
+            {teamContext.relevantBlocker
+              ? `"${teamContext.relevantBlocker.title}"의 선행이 막혀 있어요`
+              : '팀 블로커는 내 업무와 무관해요'}
+          </p>
+          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
+            <span style={{ fontSize: 11, color: '#9CA3AF' }}>팀 전체 진행률</span>
+            <span style={{ fontSize: 11, fontWeight: 700, color: '#2563EB' }}>{teamContext.teamPct}%</span>
+          </div>
+          <div style={{ height: 5, background: '#F3F4F6', borderRadius: 3, overflow: 'hidden', marginBottom: 8 }}>
+            <div style={{ height: '100%', width: `${teamContext.teamPct}%`, background: '#2563EB', borderRadius: 3 }} />
+          </div>
+          <p style={{ fontSize: 11, color: '#9CA3AF' }}>남은 기간 {teamContext.daysLeft > 0 ? `${teamContext.daysLeft}일` : 'D-Day'}</p>
+          {teamContext.iAmBlocking.length > 0 && (
+            <p style={{ fontSize: 11, color: '#D97706', marginTop: 8, fontWeight: 600 }}>내 업무가 끝나야 시작하는 후속 업무 {teamContext.iAmBlocking.length}건이 있어요</p>
+          )}
+        </div>
+      </div>
+
+      {/* AI 조언 */}
+      <AIAdviceCard items={advice} onApply={handleApplyAdvice} onDismiss={handleDismissAdvice} />
+
+      {/* 알림 피드 */}
+      <div style={{ ...card, padding: '16px 20px' }}>
+        <SectionTitle>알림</SectionTitle>
+        {notifications.length === 0 ? (
+          <p style={{ fontSize: 13, color: '#9CA3AF' }}>아직 알림이 없어요.</p>
+        ) : (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+            {notifications.slice(0, 5).map(n => (
+              <div key={n.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 10px', borderRadius: 8, background: n.read ? '#fff' : '#F9FAFB', border: '1px solid #F3F4F6' }}>
+                <StatusIcon type={n.type} size={14} />
+                <span style={{ fontSize: 12, color: '#374151', flex: 1 }}>{n.title}</span>
+                <span style={{ fontSize: 10, color: '#C4C9D1', flexShrink: 0 }}>{timeAgo(n.createdAt)}</span>
               </div>
             ))}
           </div>
-        </div>
-        {/* 내 완료율 바 */}
-        <div>
-          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
-            <span style={{ fontSize: 11, color: '#9CA3AF' }}>내 진행률</span>
-            <span style={{ fontSize: 11, color: '#9CA3AF' }}>{doneH}h / {totalH}h</span>
-          </div>
-          <div style={{ height: 6, background: '#F3F4F6', borderRadius: 3, overflow: 'hidden' }}>
-            <div style={{ height: '100%', width: `${myPct}%`, background: currentUser.color || '#2563EB', borderRadius: 3, transition: 'width 0.4s' }} />
-          </div>
-        </div>
+        )}
       </div>
-
-      {/* 팀 현황 미니 (상단 배치) */}
-      <div style={{ ...card, padding: '14px 20px', display: 'flex', alignItems: 'center', gap: 20 }}>
-        <div style={{ flex: 1 }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 5 }}>
-            <span style={{ fontSize: 12, color: '#6B7280', fontWeight: 600 }}>팀 전체 진행률</span>
-            <span style={{ fontSize: 12, fontWeight: 700, color: '#2563EB' }}>{teamPct}%</span>
-          </div>
-          <div style={{ height: 6, background: '#F3F4F6', borderRadius: 3, overflow: 'hidden' }}>
-            <div style={{ height: '100%', width: `${teamPct}%`, background: '#2563EB', borderRadius: 3 }} />
-          </div>
-        </div>
-        <div style={{ fontSize: 12, color: '#9CA3AF', flexShrink: 0 }}>
-          남은 기간 <strong style={{ color: daysLeft <= 3 ? '#EF4444' : '#111827' }}>{daysLeft > 0 ? `${daysLeft}일` : 'D-Day'}</strong>
-        </div>
-      </div>
-
-      {/* 마감 임박 경고 */}
-      {dueSoon.length > 0 && (
-        <div style={{ padding: '12px 16px', borderRadius: 12, background: '#FFFBEB', border: '1px solid #FDE68A', display: 'flex', gap: 10, alignItems: 'center' }}>
-          <StatusIcon type="deadline" size={16} />
-          <div>
-            <p style={{ fontSize: 13, fontWeight: 700, color: '#D97706', marginBottom: 2 }}>3일 내 마감 {dueSoon.length}개</p>
-            <p style={{ fontSize: 11, color: '#92400E' }}>{dueSoon.map(t => t.title).join(', ')}</p>
-          </div>
-        </div>
-      )}
-
-      <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 14 }}>
-        {/* 지금 할 일 */}
-        <div style={{ ...card, padding: '16px 18px' }}>
-          <SectionTitle count={myNow.length} countColor={myNow.length > 0 ? 'blue' : undefined}>지금 할 일</SectionTitle>
-          {myNow.length === 0
-            ? <p style={{ fontSize: 13, color: '#9CA3AF' }}>진행 중인 업무가 없어요</p>
-            : <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>{myNow.map(t => <TaskCard key={t.id} task={t} />)}</div>
-          }
-        </div>
-
-        {/* 다음 할 일 */}
-        <div style={{ ...card, padding: '16px 18px' }}>
-          <SectionTitle count={myNext.length}>다음 할 일</SectionTitle>
-          {myNext.length === 0
-            ? <p style={{ fontSize: 13, color: '#9CA3AF' }}>준비된 업무가 없어요</p>
-            : <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>{myNext.map(t => <TaskCard key={t.id} task={t} />)}</div>
-          }
-        </div>
-      </div>
-
-      {/* 검토 중 */}
-      {myReview.length > 0 && (
-        <div style={{ ...card, padding: '16px 18px' }}>
-          <SectionTitle count={myReview.length} countColor="yellow">검토 요청 중</SectionTitle>
-          <p style={{ fontSize: 11, color: '#9CA3AF', marginBottom: 8 }}>PM이 확인 중이에요</p>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-            {myReview.map(t => <TaskCard key={t.id} task={t} />)}
-          </div>
-        </div>
-      )}
-
-      {/* 의존성 */}
-      {(waitingOnMe.length > 0 || iWait.length > 0) && (
-        <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 14 }}>
-          {waitingOnMe.length > 0 && (
-            <div style={{ ...card, padding: '16px 18px' }}>
-              <SectionTitle count={waitingOnMe.length} countColor="yellow">나를 기다리는 업무</SectionTitle>
-              <p style={{ fontSize: 11, color: '#9CA3AF', marginBottom: 8 }}>내 업무가 끝나야 다른 팀원이 시작해요</p>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                {waitingOnMe.map(t => (
-                  <div key={t.id} style={{ padding: '8px 10px', borderRadius: 8, background: '#FFFBEB', border: '1px solid #FDE68A' }}>
-                    <p style={{ fontSize: 13, fontWeight: 600, color: '#111827' }}>{t.title}</p>
-                    <p style={{ fontSize: 11, color: '#9CA3AF', marginTop: 2 }}>{t.member?.name} 담당</p>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-          {iWait.length > 0 && (
-            <div style={{ ...card, padding: '16px 18px' }}>
-              <SectionTitle count={iWait.length} countColor="red">내가 기다리는 업무</SectionTitle>
-              <p style={{ fontSize: 11, color: '#9CA3AF', marginBottom: 8 }}>이 업무가 끝나야 내가 시작 가능해요</p>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                {iWait.map(t => {
-                  const blocker = tasks.find(b => b.id === t.blocker)
-                  return (
-                    <div key={t.id} style={{ padding: '8px 10px', borderRadius: 8, background: '#FFF5F5', border: '1px solid #FECACA' }}>
-                      <p style={{ fontSize: 11, color: '#9CA3AF' }}>대기: {t.title}</p>
-                      {blocker && (
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 4 }}>
-                          <Avatar initials={blocker.member?.initials} color={blocker.member?.color || '#9CA3AF'} size={16} fontSize={7} />
-                          <p style={{ fontSize: 12, fontWeight: 600, color: '#DC2626' }}>{blocker.title}</p>
-                        </div>
-                      )}
-                    </div>
-                  )
-                })}
-              </div>
-            </div>
-          )}
-        </div>
-      )}
     </div>
   )
 }
@@ -1280,12 +949,12 @@ function MemberHome({ currentUser, sprint, moveTask, isMobile, onRequestReview }
 export default function DashboardPage() {
   const navigate = useNavigate()
   const isMobile = useIsMobile()
-  const { sprint, closeSprint, moveTask, updateTask } = useSprintStore()
-  const { recordSprint } = useCapacityHistoryStore()
+  const { sprint, closeSprint, moveTask, updateTask, updateNote } = useSprintStore()
+  const { recordSprint, getMemberStats } = useCapacityHistoryStore()
   const { currentUser, can }              = useAuthStore()
   const { add: addToBacklog }             = useBacklogStore()
   const { push: pushNotif }               = useNotificationStore()
-  const { settings, members: teamMembers } = useTeamStore()
+  const { settings, members: teamMembers, updateMember } = useTeamStore()
   const [closeModal, setCloseModal]       = useState(false)
   const [welcomeToast, setWelcomeToast]   = useState(null)
 
@@ -1303,7 +972,6 @@ export default function DashboardPage() {
 
   function handleSendNotification(summary, extra) {
     pushNotif({ type: 'announce', title: 'PM 공지', body: summary + (extra ? '\n' + extra : '') })
-    // Discord 웹훅이 설정된 경우 발송
     if (settings.discordWebhook) {
       fetch(settings.discordWebhook, {
         method: 'POST',
@@ -1394,13 +1062,17 @@ export default function DashboardPage() {
       </Topbar>
 
       {isPM ? (
-        <PMHome currentUser={currentUser} sprint={sprint} onSendNotification={handleSendNotification} teamMembers={teamMembers} updateTask={updateTask} isMobile={isMobile} />
+        <PMHome currentUser={currentUser} sprint={sprint} onSendNotification={handleSendNotification}
+          teamMembers={teamMembers} updateTask={updateTask} updateMember={updateMember}
+          getMemberStats={getMemberStats} pushNotif={pushNotif} isMobile={isMobile} />
       ) : currentUser ? (
-        <MemberHome currentUser={currentUser} sprint={sprint} moveTask={moveTask} isMobile={isMobile}
-          onRequestReview={task => pushNotif({
-            type: 'review',
-            title: `검토 요청 — ${task.title}`,
-            body: `${currentUser?.name}님이 "${task.title}" 검토를 요청했어요. 진행 현황판에서 승인/반려할 수 있어요.`,
+        <MemberHome currentUser={currentUser} sprint={sprint} moveTask={moveTask} updateTask={updateTask} updateNote={updateNote} isMobile={isMobile}
+          onRequestReview={(task, isBlockedReport) => pushNotif({
+            type: isBlockedReport ? 'blocker' : 'review',
+            title: isBlockedReport ? `막힘 알림 — ${task.title}` : `검토 요청 — ${task.title}`,
+            body: isBlockedReport
+              ? `${currentUser?.name}님이 "${task.title}"에서 막혔다고 알렸어요. 확인해주세요.`
+              : `${currentUser?.name}님이 "${task.title}" 검토를 요청했어요. 진행 현황판에서 승인/반려할 수 있어요.`,
           })} />
       ) : (
         <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 8, background: '#F4F5F7', color: '#9CA3AF', fontSize: 13 }}>

@@ -24,10 +24,11 @@ function toTask(row) {
     blocker: row.blocker_id,
     note: row.note,
     outputLink: row.output_link,
+    updatedAt: row.updated_at,
   }
 }
 
-const TASK_SELECT = 'id, title, priority, estimated_hours, status, progress, start_date, due_date, blocker_id, note, output_link, member:member_id(id, profiles(name, color, initials))'
+const TASK_SELECT = 'id, title, priority, estimated_hours, status, progress, start_date, due_date, blocker_id, note, output_link, updated_at, member:member_id(id, profiles(name, color, initials))'
 
 export function useSprintStore() {
   const [teamId, setTeamId] = useState(null)
@@ -96,7 +97,7 @@ export function useSprintStore() {
   async function moveTask(taskId, newStatus) {
     const finished = sprint.tasks.find(t => t.id === taskId)
     const progress = newStatus === 'done' ? 100 : newStatus === 'inprogress' ? 10 : 0
-    await supabase.from('tasks').update({ status: newStatus, progress }).eq('id', taskId)
+    await supabase.from('tasks').update({ status: newStatus, progress, updated_at: new Date().toISOString() }).eq('id', taskId)
 
     if (newStatus === 'done') {
       if (finished && finished.status !== 'review') {
@@ -120,21 +121,22 @@ export function useSprintStore() {
 
   async function updateProgress(taskId, progress) {
     setSprint(prev => ({ ...prev, tasks: prev.tasks.map(t => t.id === taskId ? { ...t, progress } : t) }))
-    await supabase.from('tasks').update({ progress }).eq('id', taskId)
+    await supabase.from('tasks').update({ progress, updated_at: new Date().toISOString() }).eq('id', taskId)
   }
 
   async function updateNote(taskId, note) {
     setSprint(prev => ({ ...prev, tasks: prev.tasks.map(t => t.id === taskId ? { ...t, note } : t) }))
-    await supabase.from('tasks').update({ note }).eq('id', taskId)
+    await supabase.from('tasks').update({ note, updated_at: new Date().toISOString() }).eq('id', taskId)
   }
 
   async function updateTask(taskId, patch) {
-    const dbPatch = {}
+    const dbPatch = { updated_at: new Date().toISOString() }
     if ('outputLink' in patch) dbPatch.output_link = patch.outputLink
     if ('dueDate' in patch) dbPatch.due_date = patch.dueDate
     if ('title' in patch) dbPatch.title = patch.title
+    if ('member' in patch) dbPatch.member_id = patch.member?.id || null
     setSprint(prev => ({ ...prev, tasks: prev.tasks.map(t => t.id === taskId ? { ...t, ...patch } : t) }))
-    if (Object.keys(dbPatch).length) await supabase.from('tasks').update(dbPatch).eq('id', taskId)
+    await supabase.from('tasks').update(dbPatch).eq('id', taskId)
   }
 
   /** 스프린트 종료: completed 처리 + 미완료 태스크 목록 반환 (백로그 이월은 호출부에서) */
